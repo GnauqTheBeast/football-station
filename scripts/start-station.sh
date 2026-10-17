@@ -45,11 +45,24 @@ log()  { printf '\033[1;36m[start-station]\033[0m %s\n' "$*"; }
 err()  { printf '\033[1;31m[start-station:ERR]\033[0m %s\n' "$*" >&2; }
 
 # 1) Docker network ngoài (cần một lần mỗi máy).
+#    Dùng subnet tĩnh 10.200.0.0/24 để không xung đột với dải LAN 172.x
+#    (đặc biệt 172.18.x.x là subnet mặc định của Docker bridge). Nếu không
+#    set subnet, container có thể route IP LAN sai và master không reach
+#    được tới station.
 if ! docker network inspect "$NETWORK_NAME" >/dev/null 2>&1; then
-  log "tạo docker network: $NETWORK_NAME"
-  docker network create "$NETWORK_NAME"
+  log "tạo docker network: $NETWORK_NAME (subnet 10.200.0.0/24)"
+  docker network create --subnet 10.200.0.0/24 "$NETWORK_NAME"
 else
   log "docker network '$NETWORK_NAME' đã có sẵn"
+  # Cảnh báo nếu subnet đang xung đột với LAN 172.18.x.x.
+  SUBNET=$(docker network inspect "$NETWORK_NAME" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)
+  case "$SUBNET" in
+    172.18.*)
+      err "CẢNH BÁO: network $NETWORK_NAME đang dùng subnet $SUBNET — xung đột với LAN 172.18.x.x."
+      err "Master container có thể KHÔNG reach tới station. Drop và tạo lại:"
+      err "    docker network rm $NETWORK_NAME && docker network create --subnet 10.200.0.0/24 $NETWORK_NAME"
+      ;;
+  esac
 fi
 
 # 2) docker compose up station.
