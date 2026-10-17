@@ -1,0 +1,47 @@
+name: football-ddb
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    container_name: ${CONTAINER_NAME:-football-postgres}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      NODE_ROLE: ${NODE_ROLE}
+      STATION_ID: ${STATION_ID:-0}
+      MASTER_HOST: ${MASTER_HOST:-}
+      MASTER_PORT: ${MASTER_PORT:-}
+      MASTER_DB: ${MASTER_DB:-}
+      STATION_HOST: ${STATION_HOST:-}
+      STATION_PORT: ${STATION_PORT:-}
+      STATION_DB: ${STATION_DB:-}
+      REPLICATION_SLOT: ${REPLICATION_SLOT:-}
+    ports:
+      - "${POSTGRES_PORT:-5430}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db:/db:ro
+      - ./scripts/init-node.sh:/docker-entrypoint-initdb.d/init-node.sh:ro
+      - ./scripts/subscribe.sh:/subscribe.sh:ro
+      - ./scripts/subscribe-master.sh:/subscribe-master.sh:ro
+    networks:
+      football_net:
+        aliases:
+          - ${NETWORK_ALIAS:-postgres}
+    command: ["postgres", "-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  postgres_data:
+
+networks:
+  football_net:
+    external: true
+    name: ${NETWORK_NAME:-football-net}
