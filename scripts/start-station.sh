@@ -35,6 +35,8 @@ fi
 : "${CONTAINER_NAME:?CONTAINER_NAME chưa đặt trong $ENV_FILE}"
 : "${MASTER_HOST:?MASTER_HOST chưa đặt trong $ENV_FILE — sửa $ENV_FILE trỏ tới máy chủ}"
 : "${MASTER_PORT:?MASTER_PORT chưa đặt trong $ENV_FILE}"
+: "${STATION_PUBLIC_HOST:?STATION_PUBLIC_HOST chưa đặt trong $ENV_FILE — đây là IP master dùng để quay lại station}"
+: "${STATION_PUBLIC_PORT:?STATION_PUBLIC_PORT chưa đặt trong $ENV_FILE}"
 
 NETWORK_NAME="${NETWORK_NAME:-football-net}"
 COMPOSE=(docker compose -f "$ROOT_DIR/docker-compose.yml" -p football-station --env-file "$ENV_FILE")
@@ -77,15 +79,29 @@ docker exec "$CONTAINER_NAME" bash /docker-entrypoint-initdb.d/init-node.sh
 log "tạo / kiểm tra master_subscription (ref.* master -> station)..."
 docker exec "$CONTAINER_NAME" bash /subscribe-master.sh
 
-# 6) Trạng thái subscription.
-log "trạng thái subscription:"
+# 5b) Tự đăng ký với master: station psql sang master và tạo station_subscription
+#     (demo.message station -> master) ngay tại đây, không cần master chạy lệnh.
+log "đăng ký station_subscription trên master (demo.message station -> master)..."
+docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  -e STATION_PUBLIC_HOST="$STATION_PUBLIC_HOST" \
+  -e STATION_PUBLIC_PORT="$STATION_PUBLIC_PORT" \
+  -e STATION_PUBLIC_DB="$STATION_PUBLIC_DB" \
+  "$CONTAINER_NAME" bash /register-with-master.sh
+
+# 6) Trạng thái subscription (cả 2 phía).
+log "trạng thái subscription trên station:"
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$CONTAINER_NAME" \
   psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   -c "SELECT subname, subenabled, subpublications FROM pg_subscription ORDER BY subname;"
 
+log "trạng thái subscription trên master:"
+docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" "$CONTAINER_NAME" \
+  psql -h "$MASTER_HOST" -p "$MASTER_PORT" -U "$POSTGRES_USER" -d "${MASTER_DB:-$POSTGRES_DB}" \
+  -c "SELECT subname, subenabled, subpublications FROM pg_subscription ORDER BY subname;"
+
 # 7) Listen: theo dõi log station để xem master -> station replication.
-log "theo dõi log station (master -> station replication). Nhấn Ctrl-C để dừng."
-log "ping master từStation container: ${MASTER_HOST}:${MASTER_PORT}"
+log "theo dõi log station (cả 2 chiều replication). Nhấn Ctrl-C để dừng."
+log "ping master từ station container: ${MASTER_HOST}:${MASTER_PORT}"
 docker exec "$CONTAINER_NAME" pg_isready -h "$MASTER_HOST" -p "$MASTER_PORT" \
   -U "$POSTGRES_USER" -d "${MASTER_DB:-$POSTGRES_DB}" || \
   err "không kết nối được tới master ${MASTER_HOST}:${MASTER_PORT} — kiểm tra VPN/firewall/port."

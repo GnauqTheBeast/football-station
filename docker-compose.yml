@@ -18,6 +18,9 @@ services:
       STATION_HOST: ${STATION_HOST:-}
       STATION_PORT: ${STATION_PORT:-}
       STATION_DB: ${STATION_DB:-}
+      STATION_PUBLIC_HOST: ${STATION_PUBLIC_HOST:-}
+      STATION_PUBLIC_PORT: ${STATION_PUBLIC_PORT:-}
+      STATION_PUBLIC_DB: ${STATION_PUBLIC_DB:-}
       REPLICATION_SLOT: ${REPLICATION_SLOT:-}
     ports:
       - "${POSTGRES_PORT:-5430}:5432"
@@ -27,6 +30,7 @@ services:
       - ./scripts/init-node.sh:/docker-entrypoint-initdb.d/init-node.sh:ro
       - ./scripts/subscribe.sh:/subscribe.sh:ro
       - ./scripts/subscribe-master.sh:/subscribe-master.sh:ro
+      - ./scripts/register-with-master.sh:/register-with-master.sh:ro
     networks:
       football_net:
         aliases:
