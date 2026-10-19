@@ -271,3 +271,26 @@ make start-station
 
 # Xong. 2 chiều replication tự chạy.
 ```
+
+---
+
+## Cho team member non-tech (không cần bik terminal)
+
+Trên máy trạm, mở Terminal (Spotlight → gõ "Terminal") và dán đúng 1 lệnh:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.sh)"
+```
+
+Script `setup-station.sh` tự động:
+
+1. Cài Homebrew (nếu chưa có)
+2. Cài git (nếu chưa có)
+3. Clone repo về `~/football-station`
+4. Cài & khởi động Docker Desktop (nếu chưa có / chưa chạy) — đợi daemon lên
+5. Hỏi 2 câu: IP máy trạm và IP master → viết vào `.env.station` tự động
+6. Chạy `make start-station` — up + migration + subscribe 2 chiều + listen log
+
+⚠️ Master phải **đã up trước** (xem Bước 2.1). Nếu chưa, bước 6 sẽ báo "Host is unreachable" — chạy lại bước 6 sau khi master sẵn sàng.
+
+> Có thể chạy lại lệnh này nhiều lần — script idempotent (chỉ update IP trong `.env.station` và pull code mới nhất).
