@@ -261,36 +261,69 @@ football-ddb/
 ## Tóm tắt 30 giây
 
 ```bash
-# Master (máy bạn):
+# Master (máy bạn — macOS/Linux/Windows đều được):
 docker network create --subnet 10.200.0.0/24 football-net
 make up-master
 
-# Station (máy bạn bè):
-git pull
-make start-station
+# Station (team member — chạy trên Windows, 1 lệnh duy nhất):
+#  Mở PowerShell admin và dán:
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing `
+  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1").Content))
 
 # Xong. 2 chiều replication tự chạy.
 ```
 
 ---
 
-## Cho team member non-tech (không cần bik terminal)
+## Cho team member (chỉ Windows)
 
-Trên máy trạm, mở Terminal (Spotlight → gõ "Terminal") và dán đúng 1 lệnh:
+Trên máy trạm Windows: mở PowerShell **dưới quyền admin** (Nhấn nút Windows → gõ "PowerShell" → click phải → "Run as administrator") và dán đúng 1 lệnh:
 
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.sh)"
+```powershell
+& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing `
+  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1").Content))
 ```
 
-Script `setup-station.sh` tự động:
+Script `scripts/setup-station.ps1` tự động:
 
-1. Cài Homebrew (nếu chưa có)
-2. Cài git (nếu chưa có)
-3. Clone repo về `~/football-station`
-4. Cài & khởi động Docker Desktop (nếu chưa có / chưa chạy) — đợi daemon lên
-5. Hỏi 2 câu: IP máy trạm và IP master → viết vào `.env.station` tự động
-6. Chạy `make start-station` — up + migration + subscribe 2 chiều + listen log
+1. Cài winget (nếu thiếu, qua Microsoft Store — App Installer)
+2. Cài git (nếu chưa có, qua `winget install Git.Git`)
+3. Clone repo về `C:\Users\<bạn>\football-station`
+4. Cài Docker Desktop (nếu chưa có, qua `winget install Docker.DockerDesktop`); mở & đợi daemon lên
+5. Tạo docker network `football-net` (subnet `10.200.0.0/24`, tránh xung đột LAN `172.18.x`)
+6. Hỏi 2 câu: **IP máy trạm** + **IP master** → tự ghi vào `.env.station` (có gợi ý IP DHCP, có validate)
+7. Chạy: `docker compose up -d` → đợi healthy → migration → subscribe master→station → tự đăng ký station→master trên master → in status → listen logs
 
-⚠️ Master phải **đã up trước** (xem Bước 2.1). Nếu chưa, bước 6 sẽ báo "Host is unreachable" — chạy lại bước 6 sau khi master sẵn sàng.
+⚠️ **Master phải đã up trước** (xem Bước 2.1). Nếu chưa, bước cuối báo "Host is unreachable" — chạy lại lệnh trên sau khi master sẵn sàng.
 
-> Có thể chạy lại lệnh này nhiều lần — script idempotent (chỉ update IP trong `.env.station` và pull code mới nhất).
+### Yêu cầu từ team member
+
+- Windows 10 21H1+ hoặc Windows 11 (để có winget)
+- Có quyền admin máy (cần cho winget install và Docker Desktop)
+- ~5GB disk cho Docker Desktop
+- Đang ở cùng mạng LAN với master (hoặc VPN Tailscale/ZeroTier)
+
+### Cài thủ công nếu PowerShell không chạy được
+
+```powershell
+# Tải file .ps1 về:
+Invoke-WebRequest -OutFile setup-station.ps1 `
+  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1"
+
+# Chạy:
+powershell -ExecutionPolicy Bypass -File .\setup-station.ps1
+```
+
+### Mở Windows Firewall cho ping (nếu script không chạy với quyền admin)
+
+Chạy PowerShell admin và dán:
+
+```powershell
+netsh advfirewall firewall add rule name="Allow ICMPv4" protocol=icmpv4:8,any dir=in action=allow
+```
+
+Cần để master có thể ping station (kiểm tra kết nối trước khi tạo subscription).
+
+### Chạy lại nhiều lần
+
+Script idempotent — chạy lại chỉ update `.env.station` và pull code mới nhất. An toàn chạy lại.
