@@ -49,26 +49,28 @@ psql-master:
 psql-station:
 	$(STATION) exec postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
-# Kiểm tra station -> master: chèn demo.message ở station, đọc trên master.
+# Kiểm tra station -> master: chèn match.match_result ở station, đọc trên master.
 # `verify` là alias cho verify-station (giữ tương thích ngược).
 verify: verify-station
 
+# Insert 1 kết quả trận ở station Station 1, fixture 1 (đã seed trên master).
+# Match_Kết quả cần played_at <= now() (trigger), nên dùng now() - 1 hour.
 verify-station:
-	@echo "[verify-station] insert demo.message on station..."
-	@$(STATION) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "INSERT INTO demo.message(station_id, author, body) VALUES ($${STATION_ID:-1}, '"'"'verify'"'"', '"'"'hello from station'"'"')"'
+	@echo "[verify-station] insert match.match_result on station (station_id=1, fixture_id=1)..."
+	@$(STATION) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "INSERT INTO match.match_result(station_id, fixture_id, played_at, home_goals, away_goals, attendance, ticket_price) VALUES (1, 1, now() - interval '"'"'1 hour'"'"', 2, 1, 5000, 100000) ON CONFLICT (station_id, fixture_id) DO UPDATE SET home_goals = excluded.home_goals, away_goals = excluded.away_goals, attendance = excluded.attendance, ticket_price = excluded.ticket_price"'
 	@echo "[verify-station] waiting for replication..."
 	@sleep 2
 	@echo "[verify-station] rows on master:"
-	@$(MASTER) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT station_id, local_id, author, body, created_at FROM demo.message ORDER BY created_at DESC LIMIT 5"'
+	@$(MASTER) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT station_id, fixture_id, played_at, home_goals, away_goals, attendance FROM match.match_result ORDER BY played_at DESC LIMIT 5"'
 
-# Kiểm tra master -> station: đổi ref.team trên master, đọc trên station.
+# Kiểm tra master -> station: đổi tên 1 ref.team trên master, đọc trên station.
 verify-master:
-	@echo "[verify-master] insert ref.team on master..."
-	@$(MASTER) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "INSERT INTO ref.team(name, code, city) VALUES ('"'"'PTIT FC'"'"', '"'"'PTT'"'"', '"'"'Hanoi'"'"') ON CONFLICT DO NOTHING"'
+	@echo "[verify-master] UPDATE ref.team name on master (team_id=1)..."
+	@$(MASTER) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "UPDATE ref.team SET name = '"'"'Master FC '"'"'||to_char(now(),'"'"'HH24MISS'"'"') WHERE team_id = 1"'
 	@echo "[verify-master] waiting for replication..."
 	@sleep 2
 	@echo "[verify-master] rows on station:"
-	@$(STATION) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT id, name, code, city, updated_at FROM ref.team ORDER BY id DESC LIMIT 5"'
+	@$(STATION) exec -T postgres sh -c 'psql -U "$$POSTGRES_USER" -d "$$POSTGRES_DB" -c "SELECT team_id, name, founded_year FROM ref.team ORDER BY team_id LIMIT 5"'
 
 # Chạy trên MÁY TRẠM (laptop bạn): up + migration + subscribe master->station + listen log.
 start-station:

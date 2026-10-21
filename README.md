@@ -1,64 +1,58 @@
 # Football DDB: Bidirectional replication (per-table ownership)
 
-This repository demonstrates the project's two data flows, kept on separate tables so there is no loop:
+This repository implements the project's two data flows, kept on separate tables so there is no loop:
 
 ```text
-Station database ── demo.message ──> Master database
-Master database  ── ref.* (teams, fixtures) ──> Station database
+Station database ── match.* (match_result, match_squad, match_event) ──> Master database
+Master database  ── ref.* (station, season, round, stadium, team, ...) ──> Station database
 ```
 
-Stations publish their local operational data (`demo.message`); the master subscribes. The master publishes shared reference data (`ref.team`, `ref.match`); each station subscribes. Each table has exactly one write owner.
+Stations publish their local match data (`match.*`); the master subscribes. The master publishes shared reference data (`ref.*`, 12 tables); each station subscribes. **Each table has exactly one write owner → no loop.**
 
-Read the complete setup guide:
+Tham khảo thiết kế đầy đủ: [CSDL phân tán giải bóng đá.md](CSDL%20ph%C3%A2n%20t%C3%A1n%20gi%E1%BA%A3i%20b%C3%B3ng%20%C4%91%C3%A1.md).
 
-- [Station → Master Replication](STATION_TO_MASTER.md)
+## Hướng dẫn
 
-The guide covers:
-
-- why PostgreSQL was selected;
-- Docker network setup;
-- running master and station databases locally;
-- `make verify` — inserts on station, reads on master (`demo.message`)
-- `make verify-master` — edits `ref.team` on master, reads on station
-- station-to-master and master-to-station logical replication;
-- connecting across laptops through Tailscale, ZeroTier, or another VPN;
-- Docker container access to a VPN IP;
-- schema creation, publications, subscriptions, inserts, updates, and verification;
-- reset and troubleshooting commands.
+- **[SETUP.md](SETUP.md)** — Hướng dẫn khởi động & vận hành đầy đủ (tiếng Việt).
+- **[STATION_TO_MASTER.md](STATION_TO_MASTER.md)** — Hướng dẫn chi tiết station-to-master replication (giữ lại cho legacy / cross-machine ops).
 
 ## Quick start
 
 ```bash
-# External Docker network (once per machine)
-docker network create football-net
+# External Docker network (once per machine; subnet cố định tránh xung đột LAN 172.18.x.x)
+docker network create --subnet 10.200.0.0/24 football-net
 
-# Bring up master + station, create both subscriptions, verify both flows:
-make up
-make subscribe-all
-make verify           # demo.message: insert on station, read on master
-make verify-master    # ref.team: edit on master, read on station
+# Trên MASTER:
+make up-master
+# Master tự init: ref.* + match.* schema, trigger, views, master_publication, seed data.
+
+# Trên STATION (chỉ 1 lệnh):
+make start-station
+# Script tự: up + migration + master_subscription + register station_subscription + listen.
+
+# Test 2 chiều:
+make verify-station   # match.match_result: insert trên station, đọc trên master
+make verify-master    # ref.team: update trên master, đọc trên station
 ```
 
-Or, with raw compose:
+Or, with raw compose (chạy trên 1 máy thử nghiệm):
 
 ```bash
-docker network create football-net
-
 docker compose -p football-master \
   --env-file .env.master -f docker-compose.yml up -d
 
 docker compose -p football-station \
   --env-file .env.station -f docker-compose.yml up -d
 
-# station -> master: demo.message
+# station -> master: match.*
 docker compose -p football-master \
   --env-file .env.master -f docker-compose.yml \
   exec postgres bash /subscribe.sh
 
-# master -> station: ref.team, ref.match
+# master -> station: ref.*
 docker compose -p football-station \
   --env-file .env.station -f docker-compose.yml \
   exec postgres bash /subscribe-master.sh
 ```
 
-Insert station data and query it on the master as shown in [STATION_TO_MASTER.md](STATION_TO_MASTER.md). Edit reference data (`ref.team`, `ref.match`) on the master and it replicates back to the station automatically.
+Insert match data on the station and query it on the master, edit reference data (`ref.*`) on the master and it replicates back to the station automatically. See [SETUP.md](SETUP.md) section 4.
