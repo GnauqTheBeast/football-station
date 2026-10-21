@@ -1,4 +1,4 @@
-.PHONY: up up-master up-station down reset ps logs subscribe subscribe-master subscribe-all psql-master psql-station verify verify-station verify-master start-station stop-station
+.PHONY: up up-master up-station up-app down reset ps logs subscribe subscribe-master subscribe-all psql-master psql-station verify verify-station verify-master start-station stop-station down-master down-app up-app-master up-app-station dev
 
 COMPOSE := docker compose -f docker-compose.yml
 MASTER := $(COMPOSE) -p football-master --env-file .env.master
@@ -79,3 +79,21 @@ start-station:
 # Dừng station (giữ volume).
 stop-station:
 	$(STATION) down
+
+# App UI (Next.js SSR).
+# `make up-app-master` chạy app trên node master, `make up-app-station` trên station.
+down-app:
+	$(MASTER) --profile app down
+	$(STATION) --profile app down
+
+# App + master DB (cả db lẫn web trên máy master).
+up-app-master:
+	$(MASTER) --profile app up -d --build app
+
+# App + station DB (cả db lẫn web trên máy station).
+up-app-station:
+	$(STATION) --profile app up -d --build app
+
+# Dev mode: Next.js dev server chạy trực tiếp trên máy host (đọc .env.local trong app/).
+dev:
+	cd app && npm install && npm run dev

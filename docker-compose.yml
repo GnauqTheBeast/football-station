@@ -42,6 +42,34 @@ services:
       timeout: 3s
       retries: 30
 
+  # Next.js SSR web app. Optional - only starts when APP_ENABLED=1 (use
+  # `make up-app` target). Talks to the local postgres on the same compose
+  # network so docker DNS resolves the postgres service alias.
+  app:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: ${APP_CONTAINER_NAME:-football-app}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: ${APP_POSTGRES_HOST:-postgres}        # docker service alias
+      POSTGRES_PORT: "5432"                                  # inside-network port
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      NODE_ROLE: ${NODE_ROLE}
+      STATION_ID: ${STATION_ID:-0}
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    profiles: ["app"]                                        # opt-in via --profile app
+    restart: unless-stopped
+    networks:
+      football_net:
+        aliases:
+          - app
+
 volumes:
   postgres_data:
 
