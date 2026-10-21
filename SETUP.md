@@ -215,11 +215,11 @@ Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** 
 
 > 1 master + 6 stations song song: cần `station_id` riêng (1..6) cho mỗi station. Tên subscription/slot tự động thêm hậu tố theo `STATION_ID` (vd `station3_subscription`, `station3_slot`).
 
-### 7.1 Cách khác LAN (DHCP/NAT/4G/network khác) - dùng Netbird VPN mesh
+### 7.1 Cách khác LAN (DHCP/NAT/4G/network khác) - dùng ZeroTier VPN mesh
 
-Nếu master và stations không cùng LAN, dùng Netbird để mỗi máy có IP cố định `100.x.x.x`, không cần mở port. Xem hướng dẫn đầy đủ:
+Nếu master và stations không cùng LAN, dùng ZeroTier để mỗi máy có IP cố định, không cần mở port. Xem hướng dẫn đầy đủ:
 
-**[NETBIRD.md](NETBIRD.md)** - Setup VPN mesh cho team 7 người (1 master + 6 stations), dùng IP Netbird thay cho IP LAN trong `.env`.
+**[ZEROTIER.md](ZEROTIER.md)** - Setup VPN mesh cho team 7 người (1 master + 6 stations), dùng IP ZeroTier thay cho IP LAN trong `.env`.
 
 ### 7.2 Cùng LAN - thêm Station 2 (ví dụ IP `172.18.20.15`)
 
