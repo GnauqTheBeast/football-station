@@ -13,8 +13,8 @@ Tham khảo thiết kế đầy đủ: [CSDL phân tán giải bóng đá.md](CS
 
 ## Hướng dẫn
 
-- **[SETUP.md](SETUP.md)** — Hướng dẫn khởi động & vận hành đầy đủ (tiếng Việt).
-- **[STATION_TO_MASTER.md](STATION_TO_MASTER.md)** — Hướng dẫn chi tiết station-to-master replication (giữ lại cho legacy / cross-machine ops).
+- **[SETUP.md](SETUP.md)** - Hướng dẫn khởi động & vận hành đầy đủ (tiếng Việt).
+- **[STATION_TO_MASTER.md](STATION_TO_MASTER.md)** - Hướng dẫn chi tiết station-to-master replication (giữ lại cho legacy / cross-machine ops).
 
 ## Quick start
 

@@ -1,5 +1,5 @@
 # ==========================================================================
-# setup-station.ps1 — Bootstrap máy trạm football-ddb trên Windows.
+# setup-station.ps1 - Bootstrap máy trạm football-ddb trên Windows.
 #
 # Tự động:
 #   1. Cài Git (nếu chưa có) qua winget
@@ -44,7 +44,7 @@ $isAdmin = ([Security.Principal.WindowsPrincipal] `
     [Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) {
-    Warn "script chưa chạy với quyền admin — một số bước cài đặt có thể skip."
+    Warn "script chưa chạy với quyền admin - một số bước cài đặt có thể skip."
     Warn "nếu gặp lỗi 'access denied', đóng PowerShell và mở lại bằng Run as administrator."
 }
 
@@ -55,7 +55,7 @@ Say "Bước 0/6: kiểm tra winget (trình cài đặt Windows App)"
 $winget = Get-Command winget -ErrorAction SilentlyContinue
 if (-not $winget) {
     Warn "winget chưa có. Mở Microsoft Store cài 'App Installer' rồi chạy lại."
-    Warn "(Windows 11 và Windows 10 21H1+ đã có sẵn winget — nếu không thấy, update Windows.)"
+    Warn "(Windows 11 và Windows 10 21H1+ đã có sẵn winget - nếu không thấy, update Windows.)"
     $cont = Read-Host "tiếp tục dù winget không có? (y/N)"
     if ($cont -ne "y") { Die "cần winget để cài git + docker tự động." }
 }
@@ -72,9 +72,9 @@ if (-not $git) {
         # Refresh PATH
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
                     [System.Environment]::GetEnvironmentVariable("Path","User")
-    } else { Die "winget không có — cài git thủ công: https://git-scm.com/download/win" }
+    } else { Die "winget không có - cài git thủ công: https://git-scm.com/download/win" }
     $git = Get-Command git -ErrorAction SilentlyContinue
-    if (-not $git) { Die "git vẫn chưa có sau khi cài — mở PowerShell mới và chạy lại script." }
+    if (-not $git) { Die "git vẫn chưa có sau khi cài - mở PowerShell mới và chạy lại script." }
 }
 Ok "git đã cài: $(git --version)"
 
@@ -83,7 +83,7 @@ Ok "git đã cài: $(git --version)"
 # ===========================================================================
 Say "Bước 2/6: clone repo về $RepoDir"
 if (Test-Path "$RepoDir\.git") {
-    Say "repo đã có — pull mới"
+    Say "repo đã có - pull mới"
     git -C $RepoDir pull --ff-only
 } else {
     if (Test-Path $RepoDir) { Remove-Item -Recurse -Force $RepoDir }
@@ -106,7 +106,7 @@ if (-not $docker) {
             winget install --id Docker.DockerDesktop --silent `
                 --accept-package-agreements --accept-source-agreements
         } else {
-            Die "winget không có — tải Docker Desktop thủ công: https://docker.com/products/docker-desktop"
+            Die "winget không có - tải Docker Desktop thủ công: https://docker.com/products/docker-desktop"
         }
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + `
                     [System.Environment]::GetEnvironmentVariable("Path","User")
@@ -114,10 +114,10 @@ if (-not $docker) {
     Say "khởi động Docker Desktop..."
     Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
 } else {
-    # đã cài, kiểm tra daemon có chạy không — nếu không thì mở app
+    # đã cài, kiểm tra daemon có chạy không - nếu không thì mở app
     docker info | Out-Null
     if (-not $?) {
-        Say "Docker daemon chưa chạy — mở Docker Desktop..."
+        Say "Docker daemon chưa chạy - mở Docker Desktop..."
         Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
     }
 }
@@ -134,7 +134,7 @@ for ($i = 1; $i -le 150; $i++) {
 }
 
 # ===========================================================================
-# Bước 4: docker network (subnet 10.200.0.0/24 — tránh trùng LAN 172.x)
+# Bước 4: docker network (subnet 10.200.0.0/24 - tránh trùng LAN 172.x)
 # + mở Windows Firewall cho ICMPv4 (ping) từ master tới station
 # ===========================================================================
 Say "Bước 4/6: tạo docker network football-net (subnet 10.200.0.0/24) + mở firewall ICMPv4"
@@ -147,25 +147,25 @@ if ($LASTEXITCODE -ne 0) {
     # Kiểm tra subnet có đang là 172.x không (trùng LAN)
     $subnet = docker network inspect football-net --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}'
     if ($subnet -like "172.18.*") {
-        Warn "network football-net đang dùng subnet $subnet — trùng LAN, sẽ rebuild"
+        Warn "network football-net đang dùng subnet $subnet - trùng LAN, sẽ rebuild"
         docker network rm football-net
         docker network create --subnet 10.200.0.0/24 football-net
     }
     Ok "network football-net đã có"
 }
 
-# Cho phép ping (ICMPv4 echo request) vào máy này — master cần ping station để check.
+# Cho phép ping (ICMPv4 echo request) vào máy này - master cần ping station để check.
 # Yêu cầu quyền admin. Nếu không admin sẽ warn và skip (vẫn tiếp tục).
 $icmpRule = 'netsh advfirewall firewall add rule name="Allow ICMPv4" protocol=icmpv4:8,any dir=in action=allow'
 try {
     Invoke-Expression $icmpRule | Out-Null
     if ($LASTEXITCODE -eq 0) {
-        Ok "đã cho phép ICMPv4 inbound — master có thể ping station"
+        Ok "đã cho phép ICMPv4 inbound - master có thể ping station"
     } else {
-        Warn "không thêm được rule ICMPv4 (code $LASTEXITCODE) — cần chạy PowerShell admin."
+        Warn "không thêm được rule ICMPv4 (code $LASTEXITCODE) - cần chạy PowerShell admin."
     }
 } catch {
-    Warn "không thêm được rule ICMPv4 — chạy lệnh thủ công dưới quyền admin:"
+    Warn "không thêm được rule ICMPv4 - chạy lệnh thủ công dưới quyền admin:"
     Warn "  $icmpRule"
 }
 
@@ -174,7 +174,7 @@ try {
 # ===========================================================================
 Say "Bước 5/6: cấu hình .env.station"
 
-# Lấy IP LAN hiện tại làm gợi ý (192.168.x hoặc 10.x — tránh 172.18.x)
+# Lấy IP LAN hiện tại làm gợi ý (192.168.x hoặc 10.x - tránh 172.18.x)
 $ipHints = @()
 try {
     $ipHints = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
@@ -184,14 +184,14 @@ try {
 $hintIp = ($ipHints | Where-Object { $_ -notlike "172.*" } | Select-Object -First 1)
 
 $prompt = "Nhập IP của máy trạm này trên LAN"
-if ($hintIp) { $prompt += " (gợi ý: $hintIp — nhấn Enter để chọn)" }
+if ($hintIp) { $prompt += " (gợi ý: $hintIp - nhấn Enter để chọn)" }
 $prompt += ": "
 $stationIp = Read-Host $prompt
 $stationIp = $stationIp.Trim()
 if (-not $stationIp -and $hintIp) { $stationIp = $hintIp }
 if (-not $stationIp -match '^\d+\.\d+\.\d+\.\d+$') { Die "IP máy trạm không hợp lệ: $stationIp" }
 if ($stationIp -like "172.18.*") {
-    Warn "IP máy trạm là 172.18.x — trùng Docker subnet, có thể không kết nối được. Nên dùng 192.168.x hoặc 10.x."
+    Warn "IP máy trạm là 172.18.x - trùng Docker subnet, có thể không kết nối được. Nên dùng 192.168.x hoặc 10.x."
 }
 
 $prompt2 = "Nhập IP của máy chủ (master) (Enter cho mặc định $MasterHostDefault): "
@@ -199,6 +199,15 @@ $masterIp = Read-Host $prompt2
 $masterIp = $masterIp.Trim()
 if (-not $masterIp) { $masterIp = $MasterHostDefault }
 if (-not $masterIp -match '^\d+\.\d+\.\d+\.\d+$') { Die "IP master không hợp lệ: $masterIp" }
+
+# Hỏi STATION_ID - mỗi station trong team phải dùng 1 số khác nhau (1..6)
+$prompt3 = "Nhập STATION_ID của bạn (1..6, mỗi member 1 số khác nhau, Enter cho 1): "
+$stationIdRaw = Read-Host $prompt3
+$stationIdRaw = $stationIdRaw.Trim()
+if (-not $stationIdRaw) { $stationIdRaw = "1" }
+if (-not $stationIdRaw -match '^[1-6]$') { Die "STATION_ID phải là số từ 1 đến 6: $stationIdRaw" }
+$stationId = [int]$stationIdRaw
+Ok "STATION_ID = $stationId (subscription & slot sẽ có hậu tố '$stationId')"
 
 # Test kết nối tới master (không bắt buộc)
 $tcpTest = Test-NetConnection -ComputerName $masterIp -Port $MasterPortDefault -WarningAction SilentlyContinue
@@ -211,13 +220,13 @@ if ($tcpTest.TcpTestSucceeded) {
 
 # Sinh .env.station
 $envContent = @"
-# .env.station — tạo bởi setup-station.ps1
+# .env.station - tạo bởi setup-station.ps1
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=admin123
 POSTGRES_DB=football
 POSTGRES_PORT=$StationPortDefault
 NODE_ROLE=station
-STATION_ID=1
+STATION_ID=$stationId
 CONTAINER_NAME=football-station
 NETWORK_NAME=football-net
 NETWORK_ALIAS=station
@@ -226,13 +235,13 @@ REPLICATION_SLOT=master_slot
 MASTER_HOST=$masterIp
 MASTER_PORT=$MasterPortDefault
 MASTER_DB=football
-# Địa chỉ master dùng để quay lại station này (demo.message station -> master):
+# Địa chỉ master dùng để quay lại station này (match.* station -> master):
 STATION_PUBLIC_HOST=$stationIp
 STATION_PUBLIC_PORT=$StationPortDefault
 STATION_PUBLIC_DB=football
 "@
 $envContent | Set-Content -Path "$RepoDir\.env.station" -Encoding ASCII
-Ok ".env.station đã ghi: MASTER_HOST=$masterIp  STATION_PUBLIC_HOST=$stationIp"
+Ok ".env.station đã ghi: STATION_ID=$stationId  MASTER_HOST=$masterIp  STATION_PUBLIC_HOST=$stationIp"
 
 # ===========================================================================
 # Bước 6: up + migration + subscribe (làm trọn 2 chiều)
@@ -256,19 +265,20 @@ for ($i = 1; $i -le 60; $i++) {
 # Migration
 Say "chạy migration (common + station)..."
 docker exec football-station bash /docker-entrypoint-initdb.d/init-node.sh
-if ($LASTEXITCODE -ne 0) { Warn "migration báo lỗi — có thể đã chạy rồi, tiếp tục" }
+if ($LASTEXITCODE -ne 0) { Warn "migration báo lỗi - có thể đã chạy rồi, tiếp tục" }
 
 # Subscribe: master -> station (ref.*)
 Say "tạo master_subscription (master -> station, ref.*)..."
 docker exec football-station bash /subscribe-master.sh
-if ($LASTEXITCODE -ne 0) { Warn "master_subscription chưa tạo — kiểm tra master đã healthy?" }
+if ($LASTEXITCODE -ne 0) { Warn "master_subscription chưa tạo - kiểm tra master đã healthy?" }
 
-# Register: station -> master (demo.message) — station tự psql sang master
+# Register: station -> master (match.*) - station tự psql sang master
 if (Test-Path "$RepoDir\scripts\register-with-master.sh") {
-    Say "đăng ký station_subscription trên master (demo.message station -> master)..."
-    $pub = $envContent | Select-String "STATION_PUBLIC_HOST=(\S+)" | % { $_.Matches.Groups[1].Value }
-    docker exec -e PGPASSWORD=admin123 football-station bash /register-with-master.sh
-    if ($LASTEXITCODE -ne 0) { Warn "đăng ký station_subscription thất bại — kiểm tra master có thể reach lại station không" }
+    Say "đăng ký station_subscription trên master (match.* station -> master)..."
+    $stationId = ($envContent | Select-String "^STATION_ID=(\d+)" | % { $_.Matches.Groups[1].Value } | Select-Object -First 1)
+    if (-not $stationId) { $stationId = "1" }
+    docker exec -e PGPASSWORD=admin123 -e STATION_ID=$stationId football-station bash /register-with-master.sh
+    if ($LASTEXITCODE -ne 0) { Warn "đăng ký station_subscription thất bại - kiểm tra master có thể reach lại station không" }
 }
 
 # In trạng thái subscription

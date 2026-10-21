@@ -1,5 +1,5 @@
 -- =========================================================================
--- 10_ref_schema.sql — Master-owned reference tables (schema `ref`)
+-- 10_ref_schema.sql - Master-owned reference tables (schema `ref`)
 -- Replicated master → station. Station NEVER publishes these (only match.*),
 -- so there is no replication loop.
 --
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS ref.stadium (
   CONSTRAINT stadium_cap_chk CHECK (capacity > 0)
 );
 
--- 5. Team (home stadium; must have ≥6 even number of teams — app-level check)
+-- 5. Team (home stadium; must have ≥6 even number of teams - app-level check)
 CREATE TABLE IF NOT EXISTS ref.team (
   team_id          int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   home_stadium_id  int NOT NULL REFERENCES ref.stadium(stadium_id) ON DELETE RESTRICT,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS ref.team (
   CONSTRAINT team_year_chk CHECK (founded_year BETWEEN 1850 AND extract(year from now())::int)
 );
 
--- 6. TeamKit (composite PK; ≥2 colors per team — enforced by trigger)
+-- 6. TeamKit (composite PK; ≥2 colors per team - enforced by trigger)
 CREATE TABLE IF NOT EXISTS ref.team_kit (
   team_id  int NOT NULL REFERENCES ref.team(team_id) ON DELETE CASCADE,
   color    text NOT NULL,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS ref.team_kit (
   PRIMARY KEY (team_id, color)
 );
 
--- 7. Player (no team link directly — use Registration)
+-- 7. Player (no team link directly - use Registration)
 CREATE TABLE IF NOT EXISTS ref.player (
   player_id   int GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   full_name   text NOT NULL,
@@ -80,7 +80,7 @@ CREATE TABLE IF NOT EXISTS ref.referee (
   level       text NOT NULL CHECK (level IN ('FIFA','elite','national','regional'))
 );
 
--- 9. RolePay (pay-per-match per role — data, not hardcoded)
+-- 9. RolePay (pay-per-match per role - data, not hardcoded)
 -- Design: 4 referees per match = 1 main (chính) + 2 linesmen (biên) + 1 table (bàn).
 -- Three roles → three pay rates.
 CREATE TABLE IF NOT EXISTS ref.role_pay (

@@ -1,6 +1,6 @@
-# Football DDB — Hướng dẫn khởi động & vận hành
+# Football DDB - Hướng dẫn khởi động & vận hành
 
-Hệ thống PostgreSQL logical replication giữa **Master** (máy chủ, sở hữu dữ liệu tham chiếu `ref.*`) và **Station** (máy trạm, sở hữu dữ liệu trận đấu `match.*`). Replication **hai chiều nhưng phân quyền bảng** — không bao giờ loop.
+Hệ thống PostgreSQL logical replication giữa **Master** (máy chủ, sở hữu dữ liệu tham chiếu `ref.*`) và **Station** (máy trạm, sở hữu dữ liệu trận đấu `match.*`). Replication **hai chiều nhưng phân quyền bảng** - không bao giờ loop.
 
 ```text
 Station  ── match.match_result, match_squad, match_event ──>  Master
@@ -31,9 +31,9 @@ Tham khảo thiết kế đầy đủ: [CSDL phân tán giải bóng đá.md](CS
 
 ## 2. Thứ tự khởi động (BẮT BUỘC)
 
-> **Master phải up TRƯỚC Station.** Station `make start-station` sẽ psql sang master để tạo subscription — nếu master chưa sẵn sàng thì script fail.
+> **Master phải up TRƯỚC Station.** Station `make start-station` sẽ psql sang master để tạo subscription - nếu master chưa sẵn sàng thì script fail.
 
-### Bước 2.1 — Master (máy chủ, ví dụ `172.18.20.106`)
+### Bước 2.1 - Master (máy chủ, ví dụ `172.18.20.106`)
 
 ```bash
 cd football-ddb
@@ -61,13 +61,13 @@ docker exec -e PGPASSWORD=admin123 football-master \
 #  → teams=4, fixtures=2 (sau khi seed)
 ```
 
-### Bước 2.2 — Station (máy trạm, ví dụ `172.18.20.9`)
+### Bước 2.2 - Station (máy trạm, ví dụ `172.18.20.9`)
 
 ```bash
 cd football-station
 git pull           # lấy script mới nhất
 
-# Chạy 1 lệnh duy nhất — script tự lo cả 2 chiều:
+# Chạy 1 lệnh duy nhất - script tự lo cả 2 chiều:
 make start-station
 ```
 
@@ -77,12 +77,12 @@ make start-station
 2. `docker compose up -d` station container (port `5431`)
 3. Đợi postgres healthy
 4. Áp dụng migration `/db/common/*.sql` (ref.* + match.* + triggers + views) + `/db/station/*.sql` (publication)
-5. Tạo `master_subscription` trên station (master → station, kéo `ref.*`) — snapshot seed data trôi từ master xuống
+5. Tạo `master_subscription` trên station (master → station, kéo `ref.*`) - snapshot seed data trôi từ master xuống
 6. **Tự psql sang master** tạo `station_subscription` (station → master, master kéo `match.*`)
 7. In trạng thái subscription cả 2 phía
-8. Listen log station — `Ctrl-C` để thoát listen (replication vẫn chạy nền)
+8. Listen log station - `Ctrl-C` để thoát listen (replication vẫn chạy nền)
 
-> 🟢 Sau bước này **không cần thao tác thủ công nào trên master nữa** — 2 chiều replication đã lên.
+> 🟢 Sau bước này **không cần thao tác thủ công nào trên master nữa** - 2 chiều replication đã lên.
 
 ---
 
@@ -124,7 +124,7 @@ Kết quả mong đợi:
 
 ## 4. Test 2 chiều
 
-### 4.1 Station → Master (`match.*`) — qua Makefile
+### 4.1 Station → Master (`match.*`) - qua Makefile
 
 ```bash
 # Insert match.match_result trên Station (station_id=1, fixture_id=1 đã seed):
@@ -163,10 +163,10 @@ docker exec -e PGPASSWORD=admin123 football-master \
 
 ### 4.3 Trigger constraint (test ràng buộc logic)
 
-Trigger validate ở gốc — replication apply thì skip. Thử trên master:
+Trigger validate ở gốc - replication apply thì skip. Thử trên master:
 
 ```bash
-# Thử thêm 2 main referees cho cùng fixture → phải FAIL (trigger拒绝):
+# Thử thêm 2 main referees cho cùng fixture → phải FAIL (trigger từ chối):
 docker exec -e PGPASSWORD=admin123 football-master psql -U admin -d football -c \
   "INSERT INTO ref.match_referee(fixture_id, referee_id, role)
    SELECT fixture_id, 16, 'main' FROM ref.fixture LIMIT 1;" 2>&1 | tail -3
@@ -180,11 +180,11 @@ docker exec -e PGPASSWORD=admin123 football-master psql -U admin -d football -c 
 > **Station down trước, Master down sau.** Tránh station đang giữ slot trên master.
 
 ```bash
-# Bước 1 — Station:
+# Bước 1 - Station:
 make stop-station
 # hoặc: docker compose -p football-station --env-file .env.station down
 
-# Bước 2 — Master:
+# Bước 2 - Master:
 make down-master
 # hoặc: docker compose -p football-master --env-file .env.master down
 ```
@@ -200,22 +200,31 @@ make down-master
 docker compose -p football-master --env-file .env.master down -v
 # Station:
 docker compose -p football-station --env-file .env.station down -v
-# Network (không bắt buộc — subnet đã đúng):
+# Network (không bắt buộc - subnet đã đúng):
 docker network rm football-net 2>/dev/null
 docker network create --subnet 10.200.0.0/24 football-net
 
 # Rồi làm lại từ Bước 2.1.
 ```
 
-Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** — `down -v` xóa volume để init chạy lại. Sau khi reset master, **bắt buộc reset cả station** (vì schema `ref.*` đã thay đổi, station replicate sẽ fail nếu schema cũ lệch).
+Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** - `down -v` xóa volume để init chạy lại. Sau khi reset master, **bắt buộc reset cả station** (vì schema `ref.*` đã thay đổi, station replicate sẽ fail nếu schema cũ lệch).
 
 ---
 
-## 7. Thêm Station mới (ví dụ Station 2 ở IP `172.18.20.15`)
+## 7. Thêm Station mới / 6 stations song song
 
-> Lưu ý quan trọng: khi thiết kế dùng nhiều station song song, mỗi station phải có `station_id` riêng và mỗi subscription trên master phải dùng tên + slot khác nhau.
+> 1 master + 6 stations song song: cần `station_id` riêng (1..6) cho mỗi station. Tên subscription/slot tự động thêm hậu tố theo `STATION_ID` (vd `station3_subscription`, `station3_slot`).
 
-1. Copy `.env.station` → `.env.station2`, sửa:
+### 7.1 Cách khác LAN (DHCP/NAT/4G/network khác) - dùng Netbird VPN mesh
+
+Nếu master và stations không cùng LAN, dùng Netbird để mỗi máy có IP cố định `100.x.x.x`, không cần mở port. Xem hướng dẫn đầy đủ:
+
+**[NETBIRD.md](NETBIRD.md)** - Setup VPN mesh cho team 7 người (1 master + 6 stations), dùng IP Netbird thay cho IP LAN trong `.env`.
+
+### 7.2 Cùng LAN - thêm Station 2 (ví dụ IP `172.18.20.15`)
+
+1. Trên máy Station 2: chạy `setup-station.ps1`, nhập `STATION_ID=2` khi được hỏi (script sẽ sinh tên subscription/slot tương ứng).
+2. Hoặc copy `.env.station` → `.env.station2`, sửa các dòng:
    - `STATION_ID=2`
    - `CONTAINER_NAME=football-station2`
    - `POSTGRES_PORT=5432`  *(port host khác station 1)*
@@ -223,8 +232,18 @@ Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** 
    - `REPLICATION_SLOT=master_slot_s2`
    - `STATION_PUBLIC_HOST=172.18.20.15`
    - `STATION_PUBLIC_PORT=5432`
-2. Sửa `scripts/register-with-master.sh`: đổi `station_subscription` → `station2_subscription`, `station_slot` → `station2_slot` (TODO: parameterize theo `STATION_ID`).
 3. Trên máy Station 2: `ENV_FILE=.env.station2 make start-station`
+
+### 7.3 Quy ước tên subscription/slot theo `STATION_ID`
+
+| `STATION_ID` | Subscription name (master) | Slot name |
+|---|---|---|
+| 1 | `station1_subscription` | `station1_slot` |
+| 2 | `station2_subscription` | `station2_slot` |
+| ... | ... | ... |
+| 6 | `station6_subscription` | `station6_slot` |
+
+Script `register-with-master.sh` và `subscribe.sh` đều tự động sinh tên này từ `STATION_ID`, không cần sửa script thủ công.
 
 ---
 
@@ -239,7 +258,7 @@ Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** 
 | Master không nhận `match.*` | `station_subscription` chưa có trên master | Chạy lại `make start-station` trên station (script tự đăng ký) |
 | `ALTER SUBSCRIPTION ... REFRESH PUBLICATION` báo "new table missing on subscriber" | Thêm bảng master sau khi sub đã tạo | Trên station: `ALTER SUBSCRIPTION master_subscription REFRESH PUBLICATION;` để đăng ký thêm bảng mới |
 | `DROP SUBSCRIPTION` lỗi "cannot run inside transaction" | Chạy trong block transaction | Issue `DROP SUBSCRIPTION` bằng `psql -c` riêng (không phải heredoc) |
-| `session_replication_role` cảnh báo "trigger được skip" | Bình thường — trigger skip khi apply replication | Đây là cơ chế mong muốn: validate 1 lần tại gốc |
+| `session_replication_role` cảnh báo "trigger được skip" | Bình thường - trigger skip khi apply replication | Đây là cơ chế mong muốn: validate 1 lần tại gốc |
 
 ---
 
@@ -317,7 +336,7 @@ Thiết kế implement các ràng buộc như sau:
 | Cầu thủ trong squad phải đăng ký cho đội vào ngày đá | Trigger `match_squad_checks` |
 | MatchEvent.player phải nằm trong squad | Trigger `match_event_player_in_squad` |
 | Tổng goal events ≤ MatchResult tổng goals | Trigger `match_event_goal_count_bounds` + `match_result_goals_ge_events` |
-| Verify chính xác goals cuối trận | `SELECT match.verify_match_complete(station, fixture)` — app gọi |
+| Verify chính xác goals cuối trận | `SELECT match.verify_match_complete(station, fixture)` - app gọi |
 | Registration tối đa 30 người/đội | Trigger `reg_max_30_per_team` |
 | Double round-robin (8 đội × 2 lượt = 14 vòng) | App-level |
 | Trọng tài tối đa 1 trận/vòng | App-level |
@@ -356,7 +375,7 @@ docker exec -e PGPASSWORD=admin123 football-master \
 docker network create --subnet 10.200.0.0/24 football-net
 make up-master
 
-# Station (team member — Windows, chạy 1 lệnh):
+# Station (team member - Windows, chạy 1 lệnh):
 #  Mở PowerShell admin và dán:
 & ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing `
   "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1").Content))
@@ -377,7 +396,7 @@ Trên máy trạm Windows: mở PowerShell **dưới quyền admin** (Nhấn nú
 
 Script `scripts/setup-station.ps1` tự động:
 
-1. Cài winget (nếu thiếu, qua Microsoft Store — App Installer)
+1. Cài winget (nếu thiếu, qua Microsoft Store - App Installer)
 2. Cài git (nếu chưa có, qua `winget install Git.Git`)
 3. Clone repo về `C:\Users\<bạn>\football-station`
 4. Cài Docker Desktop (nếu chưa có, qua `winget install Docker.DockerDesktop`); mở & đợi daemon lên
@@ -385,7 +404,7 @@ Script `scripts/setup-station.ps1` tự động:
 6. Hỏi 2 câu: **IP máy trạm** + **IP master** → tự ghi vào `.env.station` (có gợi ý IP DHCP, có validate)
 7. Chạy: `docker compose up -d` → đợi healthy → migration → subscribe master→station → tự đăng ký station→master trên master → in status → listen logs
 
-⚠️ **Master phải đã up trước** (xem Bước 2.1). Nếu chưa, bước cuối báo "Host is unreachable" — chạy lại lệnh trên sau khi master sẵn sàng.
+⚠️ **Master phải đã up trước** (xem Bước 2.1). Nếu chưa, bước cuối báo "Host is unreachable" - chạy lại lệnh trên sau khi master sẵn sàng.
 
 ### Yêu cầu từ team member
 
@@ -417,4 +436,4 @@ Cần để master có thể ping station (kiểm tra kết nối trước khi t
 
 ### Chạy lại nhiều lần
 
-Script idempotent — chạy lại chỉ update `.env.station` và pull code mới nhất. An toàn chạy lại.
+Script idempotent - chạy lại chỉ update `.env.station` và pull code mới nhất. An toàn chạy lại.

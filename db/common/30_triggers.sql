@@ -1,7 +1,7 @@
 -- =========================================================================
--- 30_triggers.sql — Complex constraints not expressible as CHECK/FK.
+-- 30_triggers.sql - Complex constraints not expressible as CHECK/FK.
 --
--- All triggers are default (ENABLE ORIGIN) — they fire only on the node
+-- All triggers are default (ENABLE ORIGIN) - they fire only on the node
 -- where the app writes, not on the subscriber (logical replication runs
 -- with session_replication_role = 'replica', so origin triggers are
 -- skipped during apply). This is correct: validate at the origin once.
@@ -27,7 +27,7 @@ CREATE TRIGGER team_kit_min_two_colors
   FOR EACH ROW EXECUTE FUNCTION ref.team_kit_min_two_colors();
 
 -- -------------------------------------------------------------------------
--- B. MatchReferee: exactly 4 — 1 main + 2 linesmen + 1 table per fixture.
+-- B. MatchReferee: exactly 4 - 1 main + 2 linesmen + 1 table per fixture.
 -- -------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION ref.match_referee_role_dist() RETURNS trigger AS $$
 DECLARE
@@ -258,7 +258,7 @@ BEGIN
   WHERE team_id = NEW.team_id
     AND NEW.period && period;
   IF n > 30 THEN
-    RAISE EXCEPTION 'Team % already has 30 registered players in period % — new limit reached',
+    RAISE EXCEPTION 'Team % already has 30 registered players in period % - new limit reached',
       NEW.team_id, NEW.period;
   END IF;
   RETURN NEW;

@@ -3,7 +3,7 @@
 # scripts/start-station.sh
 #
 # Chỉ chạy trên MÁY TRẠM. Dựng station DB, áp dụng migration, tạo subscription
-# kéo ref.* từ master (master -> station), rồi "listen" — theo dõi log của
+# kéo ref.* từ master (master -> station), rồi "listen" - theo dõi log của
 # station container để xem dữ liệu tham chiếu từ master trôi về trạm trong
 # thời gian thực.
 #
@@ -33,9 +33,9 @@ fi
 : "${POSTGRES_DB:?POSTGRES_DB chưa đặt trong $ENV_FILE}"
 : "${POSTGRES_PORT:?POSTGRES_PORT chưa đặt trong $ENV_FILE}"
 : "${CONTAINER_NAME:?CONTAINER_NAME chưa đặt trong $ENV_FILE}"
-: "${MASTER_HOST:?MASTER_HOST chưa đặt trong $ENV_FILE — sửa $ENV_FILE trỏ tới máy chủ}"
+: "${MASTER_HOST:?MASTER_HOST chưa đặt trong $ENV_FILE - sửa $ENV_FILE trỏ tới máy chủ}"
 : "${MASTER_PORT:?MASTER_PORT chưa đặt trong $ENV_FILE}"
-: "${STATION_PUBLIC_HOST:?STATION_PUBLIC_HOST chưa đặt trong $ENV_FILE — đây là IP master dùng để quay lại station}"
+: "${STATION_PUBLIC_HOST:?STATION_PUBLIC_HOST chưa đặt trong $ENV_FILE - đây là IP master dùng để quay lại station}"
 : "${STATION_PUBLIC_PORT:?STATION_PUBLIC_PORT chưa đặt trong $ENV_FILE}"
 
 NETWORK_NAME="${NETWORK_NAME:-football-net}"
@@ -58,7 +58,7 @@ else
   SUBNET=$(docker network inspect "$NETWORK_NAME" --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' 2>/dev/null || true)
   case "$SUBNET" in
     172.18.*)
-      err "CẢNH BÁO: network $NETWORK_NAME đang dùng subnet $SUBNET — xung đột với LAN 172.18.x.x."
+      err "CẢNH BÁO: network $NETWORK_NAME đang dùng subnet $SUBNET - xung đột với LAN 172.18.x.x."
       err "Master container có thể KHÔNG reach tới station. Drop và tạo lại:"
       err "    docker network rm $NETWORK_NAME && docker network create --subnet 10.200.0.0/24 $NETWORK_NAME"
       ;;
@@ -92,10 +92,11 @@ docker exec "$CONTAINER_NAME" bash /docker-entrypoint-initdb.d/init-node.sh
 log "tạo / kiểm tra master_subscription (ref.* master -> station)..."
 docker exec "$CONTAINER_NAME" bash /subscribe-master.sh
 
-# 5b) Tự đăng ký với master: station psql sang master và tạo station_subscription
-#     (demo.message station -> master) ngay tại đây, không cần master chạy lệnh.
-log "đăng ký station_subscription trên master (demo.message station -> master)..."
+# 5b) Tự đăng ký với master: station psql sang master và tạo station${STATION_ID}_subscription
+#     (match.* station -> master) ngay tại đây, không cần master chạy lệnh.
+log "đăng ký station${STATION_ID}_subscription trên master (match.* station -> master)..."
 docker exec -e PGPASSWORD="$POSTGRES_PASSWORD" \
+  -e STATION_ID="$STATION_ID" \
   -e STATION_PUBLIC_HOST="$STATION_PUBLIC_HOST" \
   -e STATION_PUBLIC_PORT="$STATION_PUBLIC_PORT" \
   -e STATION_PUBLIC_DB="$STATION_PUBLIC_DB" \
@@ -117,6 +118,6 @@ log "theo dõi log station (cả 2 chiều replication). Nhấn Ctrl-C để d�
 log "ping master từ station container: ${MASTER_HOST}:${MASTER_PORT}"
 docker exec "$CONTAINER_NAME" pg_isready -h "$MASTER_HOST" -p "$MASTER_PORT" \
   -U "$POSTGRES_USER" -d "${MASTER_DB:-$POSTGRES_DB}" || \
-  err "không kết nối được tới master ${MASTER_HOST}:${MASTER_PORT} — kiểm tra VPN/firewall/port."
+  err "không kết nối được tới master ${MASTER_HOST}:${MASTER_PORT} - kiểm tra VPN/firewall/port."
 
 "${COMPOSE[@]}" logs -f --tail=50

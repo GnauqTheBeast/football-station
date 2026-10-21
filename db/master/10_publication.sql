@@ -1,5 +1,5 @@
 -- =========================================================================
--- 10_publication.sql — Master publishes all 12 reference tables.
+-- 10_publication.sql - Master publishes all 12 reference tables.
 -- Stations subscribe via master_subscription; stations never publish these,
 -- so the flow is strictly master -> station (no loop).
 -- =========================================================================

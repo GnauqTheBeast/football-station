@@ -1,5 +1,5 @@
 -- =========================================================================
--- 10_publication.sql — Station publishes its 3 local match tables.
+-- 10_publication.sql - Station publishes its 3 local match tables.
 -- Master subscribes via station_subscription; master never publishes these,
 -- so the flow is strictly station -> master (no loop).
 -- =========================================================================

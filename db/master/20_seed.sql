@@ -1,5 +1,5 @@
 -- =========================================================================
--- 20_seed.sql — Sample reference data seeded by master only. Stations
+-- 20_seed.sql - Sample reference data seeded by master only. Stations
 -- receive these rows via master_publication replication.
 -- Idempotent where possible (ON CONFLICT DO NOTHING) so re-running init
 -- doesn't double-insert.
@@ -16,8 +16,8 @@ ON CONFLICT (role) DO NOTHING;
 -- matches). Station 1 is your friend's station (172.18.20.9), Station 2 is
 -- a placeholder for a second station.
 INSERT INTO ref.station(name, region) VALUES
-  ('Station 1 — Hanoi', 'North'),
-  ('Station 2 — HCMC',  'South')
+  ('Station 1 - Hanoi', 'North'),
+  ('Station 2 - HCMC',  'South')
 ON CONFLICT DO NOTHING;
 
 -- One season, 14 rounds (8 teams × 2 legs)
@@ -33,7 +33,7 @@ FROM ref.season s
 CROSS JOIN generate_series(1, 14) AS g(rn)
 WHERE NOT EXISTS (SELECT 1 FROM ref.round r WHERE r.season_id = s.season_id AND r.round_no = g.rn);
 
--- 4 stadiums for sample scale (design needs ≥6 even teams; for testing —
+-- 4 stadiums for sample scale (design needs ≥6 even teams; for testing -
 -- trigger-level "even/≥6 teams" is app-level).
 INSERT INTO ref.stadium(station_id, name, capacity) VALUES
   (1, 'My Dinh', 40000),
@@ -60,7 +60,7 @@ WHERE NOT EXISTS (
   SELECT 1 FROM ref.team_kit k WHERE k.team_id = t.team_id AND k.color = c.color
 );
 
--- Sample players — 4 per team = 16 total
+-- Sample players - 4 per team = 16 total
 INSERT INTO ref.player(full_name, birth_date, nationality, position)
 SELECT 'Player ' || g.id,
        DATE '1995-01-01' + (g.id % 365),
@@ -69,7 +69,7 @@ SELECT 'Player ' || g.id,
 FROM generate_series(1, 16) AS g(id)
 WHERE NOT EXISTS (SELECT 1 FROM ref.player WHERE full_name = 'Player ' || g.id);
 
--- Sample referees — exactly 16 (enough for one round)
+-- Sample referees - exactly 16 (enough for one round)
 INSERT INTO ref.referee(full_name, birth_date, level)
 SELECT 'Referee ' || g.id,
        DATE '1980-01-01' + (g.id % 365),
@@ -78,7 +78,7 @@ FROM generate_series(1, 16) AS g(id)
 WHERE NOT EXISTS (SELECT 1 FROM ref.referee WHERE full_name = 'Referee ' || g.id);
 
 -- 4 sample fixtures in round 1 (2 home/away pairs)
--- Insert them using team_ids 1..4 — adjust to your actual teams.
+-- Insert them using team_ids 1..4 - adjust to your actual teams.
 INSERT INTO ref.fixture(round_id, home_team, away_team, stadium_id, kickoff)
 SELECT r.round_id, ht.team_id, at.team_id, ht.home_stadium_id,
        timestamptz '2026-02-01 19:00:00+07' + (g.idx * interval '1 day')

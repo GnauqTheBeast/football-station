@@ -1,5 +1,5 @@
 -- =========================================================================
--- 20_match_schema.sql — Station-owned match data (schema `match`)
+-- 20_match_schema.sql - Station-owned match data (schema `match`)
 -- Replicated station → master (sharded by station_id of the home stadium).
 --
 -- Composite key (station_id, fixture_id, ...) ties all rows of a single
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS match.match_result (
   CONSTRAINT mr_fixture_fk   FOREIGN KEY (fixture_id) REFERENCES ref.fixture(fixture_id) ON DELETE CASCADE
 );
 
--- 14. MatchSquad (up to 18 players per team per match — enforced by trigger)
+-- 14. MatchSquad (up to 18 players per team per match - enforced by trigger)
 CREATE TABLE IF NOT EXISTS match.match_squad (
   station_id    int NOT NULL,
   fixture_id    int NOT NULL,

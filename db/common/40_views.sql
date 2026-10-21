@@ -1,5 +1,5 @@
 -- =========================================================================
--- 40_views.sql — Aggregate views (master-side reads). Computed from
+-- 40_views.sql - Aggregate views (master-side reads). Computed from
 -- replicated match data, so they live on the master by default. Defining
 -- them on every node is harmless (on stations these views see only local
 -- rows; on master they see rows from all 6 stations).

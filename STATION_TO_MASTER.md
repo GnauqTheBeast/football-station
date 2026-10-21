@@ -379,7 +379,7 @@ CREATE PUBLICATION station_1_publication
 FOR TABLE demo.message;
 ```
 
-Each station would subscribe to `master_reference_publication`, while the master would have six subscriptions—one for each station publication. No database should freely update the other database’s owned rows.
+Each station would subscribe to `master_reference_publication`, while the master would have six subscriptions-one for each station publication. No database should freely update the other database’s owned rows.
 
 This design provides two-way communication while avoiding unrestricted multi-master replication. If a table needs to be edited by both the master and a station, the project must define conflict resolution first, such as row ownership, version columns, timestamps, or application-level conflict handling.
 
@@ -413,7 +413,7 @@ docker compose -p football-station --env-file .env.station -f docker-compose.yml
 
 The updated row should appear on the master. Changes made directly on the master do not automatically go back to the station because there is no reverse publication/subscription.
 
-The current configuration is intentionally one-way *for `demo.message`*. The repo now also supports the reverse direction on a separate set of tables (`ref.team`, `ref.match`) owned by the master — see [Master → Station replication](#master--station-replication-shared-reference-data) above. Each table has exactly one write owner, so this is controlled two-way data flow, not unrestricted multi-master replication. To synchronize a master-owned table that a station also writes to, define conflict resolution first.
+The current configuration is intentionally one-way *for `demo.message`*. The repo now also supports the reverse direction on a separate set of tables (`ref.team`, `ref.match`) owned by the master - see [Master → Station replication](#master--station-replication-shared-reference-data) above. Each table has exactly one write owner, so this is controlled two-way data flow, not unrestricted multi-master replication. To synchronize a master-owned table that a station also writes to, define conflict resolution first.
 
 ## Does two-way communication happen in real systems?
 
