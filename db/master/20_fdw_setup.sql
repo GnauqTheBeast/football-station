@@ -22,12 +22,12 @@ DROP SERVER IF EXISTS srv_bich_ndfc CASCADE;
 DROP SERVER IF EXISTS srv_minhdung_hagl CASCADE;
 
 -- Tạo Foreign Server (host được substitute từ env var STATION<N>_HOST)
-CREATE SERVER srv_tuan_hnfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION1_HOST__', port '5432', dbname 'vleague_hnfc');
-CREATE SERVER srv_thong_cahn FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION2_HOST__', port '5432', dbname 'vleague_cahn');
-CREATE SERVER srv_dung_viettel FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION3_HOST__', port '5432', dbname 'vleague_viettel');
-CREATE SERVER srv_quanganh_hpfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION4_HOST__', port '5432', dbname 'vleague_haiphong');
-CREATE SERVER srv_bich_ndfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION5_HOST__', port '5432', dbname 'vleague_namdinh');
-CREATE SERVER srv_minhdung_hagl FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION6_HOST__', port '5432', dbname 'vleague_hagl');
+CREATE SERVER srv_tuan_hnfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION1_HOST__', port '__STATION1_PORT__', dbname 'vleague_hnfc');
+CREATE SERVER srv_thong_cahn FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION2_HOST__', port '__STATION2_PORT__', dbname 'vleague_cahn');
+CREATE SERVER srv_dung_viettel FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION3_HOST__', port '__STATION3_PORT__', dbname 'vleague_viettel');
+CREATE SERVER srv_quanganh_hpfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION4_HOST__', port '__STATION4_PORT__', dbname 'vleague_haiphong');
+CREATE SERVER srv_bich_ndfc FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION5_HOST__', port '__STATION5_PORT__', dbname 'vleague_namdinh');
+CREATE SERVER srv_minhdung_hagl FOREIGN DATA WRAPPER postgres_fdw OPTIONS (host '__STATION6_HOST__', port '__STATION6_PORT__', dbname 'vleague_hagl');
 
 -- Tạo User mapping (mật khẩu mặc định 123456 - khớp với POSTGRES_PASSWORD của station)
 CREATE USER MAPPING FOR postgres SERVER srv_tuan_hnfc OPTIONS (user 'postgres', password '123456');

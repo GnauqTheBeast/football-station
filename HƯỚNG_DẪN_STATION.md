@@ -1,10 +1,12 @@
-# HƯỚNG DẪN CHẠY TRẠM (STATION) - cho 5 bạn còn lại
+# HƯỚNG DẪN CHẠY TRẠM (STATION) - cho 5 bạn
 
 > **Mỗi bạn được giao 1 CLB cụ thể. Phần này nói rõ bạn chạy máy trạm (station) nào và nhập lệnh gì.**
 >
-> **Máy master (Trung tâm) ở máy Quang - IP ZeroTier: `10.19.227.12`**
+> **Máy master (Trung tâm) ở máy Quang - IP LAN: `10.19.227.12`**
 >
-> Kiến trúc: `postgres_fdw` - master IMPORT FOREIGN SCHEMA từ 6 station. Bạn không cần biết cái đó, chỉ cần làm đúng theo hướng dẫn bên dưới.
+> Kiến trúc: `postgres_fdw` - master IMPORT FOREIGN SCHEMA từ 5 station. Bạn không cần biết cái đó, chỉ cần làm đúng theo hướng dẫn bên dưới.
+>
+> **Lưu ý**: Bài gốc BTL-CSDL có 6 station, nhưng team mình chỉ có 5 bạn station (Tuấn, Thông, Quang Anh, Ngọc Bích, Minh Dũng) + Quang (master). Nên Station 3 (Viettel) **bỏ khỏi demo** - không deploy. Tổng 25 trận phân mảnh ngang (5 station x 5 trận), master gộp qua FDW.
 
 ---
 
@@ -29,16 +31,6 @@
 | **Sân nhà** | Hàng Đẫy |
 | **DB name** | `vleague_cahn` |
 | **Trận quản lý** | TR02, TR11, TR20, TR22, TR29 (5 trận sân nhà CAHN) |
-
-### Mạnh Dũng - Station 3 (VTT - Viettel)
-
-| | |
-|---|---|
-| **STATION_ID** | `3` |
-| **CLB** | VTT (Viettel - Thể Công) |
-| **Sân nhà** | Quốc Gia Mỹ Đình |
-| **DB name** | `vleague_viettel` |
-| **Trận quản lý** | TR03, TR08, TR21, TR26, TR28 (5 trận sân nhà Viettel) |
 
 ### Quang Anh - Station 4 (HPFC - Hải Phòng FC)
 
@@ -70,7 +62,8 @@
 | **DB name** | `vleague_hagl` |
 | **Trận quản lý** | TR06, TR10, TR17, TR24, TR30 (5 trận sân nhà HAGL) |
 
-> **Tổng: 6 × 5 = 30 trận phân mảnh ngang. Master gộp tất cả qua FDW**.
+> **Tổng: 5 × 5 = 25 trận phân mảnh ngang. Master gộp tất cả qua FDW**.
+> (BTL-CSDL gốc có 6 station = 30 trận, nhưng team mình bỏ Station 3 Viettel nên còn 5 station = 25 trận.)
 
 ---
 
@@ -88,9 +81,9 @@ Script tự động:
 - Cài git nếu thiếu
 - Clone repo về `football-station\`
 - Tạo docker network `football-net`
-- Hỏi bạn **STATION_ID** - **NHẬP ĐÚNG SỐ CỦA BẠN (1-6) theo bảng mục 1**
-- Tự tạo `.env.station` với `POSTGRES_DB` khớp STATION_ID
-- Up container, đợi healthy, in ra IP ZeroTier của máy bạn
+- Hỏi bạn **STATION_ID** - **NHẬP ĐÚNG SỐ CỦA BẠN (1, 2, 4, 5, 6 - KHÔNG nhập 3) theo bảng mục 1**
+# Tự tạo `.env.station` với `POSTGRES_DB` khớp STATION_ID
+- Up container, đợi healthy, in ra IP LAN/ZeroTier của máy bạn
 
 ### Linux / macOS
 
@@ -112,10 +105,11 @@ Sửa `.env.station` theo đúng STATION_ID của bạn (xem mục 1 để biế
 |---|---|
 | Tuấn | `STATION_ID=1` + `POSTGRES_DB=vleague_hnfc` |
 | Thông | `STATION_ID=2` + `POSTGRES_DB=vleague_cahn` |
-| Mạnh Dũng | `STATION_ID=3` + `POSTGRES_DB=vleague_viettel` |
 | Quang Anh | `STATION_ID=4` + `POSTGRES_DB=vleague_haiphong` |
 | Ngọc Bích | `STATION_ID=5` + `POSTGRES_DB=vleague_namdinh` |
 | Minh Dũng | `STATION_ID=6` + `POSTGRES_DB=vleague_hagl` |
+
+> Station 3 (Viettel) không có trong team - **không nhập STATION_ID=3**.
 
 File `.env.station` hoàn chỉnh mẫu (ví dụ Thông - station 2):
 
@@ -204,7 +198,7 @@ ipconfig | Select-String "IPv4"
 > "Quang ơi, mình là **<Tên>**, station **<STATION_ID>** (**<CLB>**). IP máy mình là `10.xxx.xxx.xxx`. Cài xong rồi, container đang healthy."
 
 Ví dụ Thông gửi:
-> "Quang ơi, mình là Thông, station 2 (CAHN). IP máy mình là `10.147.17.12`. Cài xong rồi, container đang healthy."
+> "Quang ơi, mình là Thông, station 2 (CAHN). IP máy mình là `10.19.227.149`. Cài xong rồi, container đang healthy."
 
 Quang sẽ update `.env.master` với IP của bạn và chạy `make setup-fdw` → master có thể query được data của bạn qua FDW.
 
@@ -219,10 +213,10 @@ docker exec football-station<STATION_ID> psql -U postgres -d <db_name> -c \
    SELECT COUNT(*) FROM su_kien_tran_dau;"
 ```
 
-Ví dụ **Mạnh Dũng (station 3 - Viettel)**:
+Ví dụ **Minh Dũng (station 6 - HAGL)**:
 
 ```bash
-docker exec football-station3 psql -U postgres -d vleague_viettel -c \
+docker exec football-station6 psql -U postgres -d vleague_hagl -c \
   "SELECT COUNT(*) FROM tran_dau_chuyen_mon;
    SELECT COUNT(*) FROM su_kien_tran_dau;"
 ```
@@ -234,7 +228,7 @@ Kết quả mong đợi:
 Xem chi tiết 5 trận của bạn:
 
 ```bash
-docker exec football-station3 psql -U postgres -d vleague_viettel -c \
+docker exec football-station6 psql -U postgres -d vleague_hagl -c \
   "SELECT MaTran, MaDoiNha, MaDoiKhach, BanThangNha, BanThangKhach FROM tran_dau_chuyen_mon ORDER BY MaTran;"
 ```
 
@@ -286,8 +280,9 @@ Sẽ thấy test row của tất cả các station đi qua FDW về master:
        trang        | so_tran_test | danh_sach_ma_tran
 --------------------+--------------+--------------------
  Station2 (CAHN)    |            1 | T2abc12345
- Station3 (Viettel) |            1 | T3def67890
  Station4 (HPFC)    |            1 | T4ghi13579
+ Station5 (NDFC)    |            1 | T5xyz24680
+ Station6 (HAGL)    |            1 | T6mno13579
  ...
 ```
 
@@ -331,9 +326,12 @@ docker compose -f docker-compose.station.yml --env-file .env.station -p football
 | `port is already allocated` | Port 5431 đã có app khác dùng. Sửa `POSTGRES_PORT=5432` (hoặc số khác) trong `.env.station` |
 | `network football-net not found` | Quên `docker network create football-net`. Chạy lệnh đó trước |
 | `setup-station.ps1` báo cần admin | PowerShell phải mở Run as Administrator (chuột phải PowerShell → Run as Administrator) |
-| Station healthy nhưng Quang không query được qua FDW | Bạn chưa báo IP hoặc IP ZeroTier sai. Cấp lại IP cho Quang |
+| Station healthy nhưng Quang không query được qua FDW | Bạn chưa báo IP hoặc IP wrong. Cấp lại IP cho Quang. Chạy `./scripts/station-fix-and-test.sh` để verify |
 | Setup-station.ps1 báo "Need restart after install Docker" | Restart máy, mở Docker Desktop, đợi 1 phút, mở lại PowerShell admin, chạy lại script |
 | `pg_isready` báo `no response` từ master | Master container chưa healthy ở máy Quang. Báo Quang kiểm tra `make ps` |
+| `cannot translate host name "station3"` khi Quang chạy `make setup-fdw` | Bình thường. Station 3 đã bỏ khỏi demo, master tự SKIP station 3, không ảnh hưởng 5 station khác |
+| `fe_sendauth: no password supplied` từ master tới station của bạn | Hỏi Quang kiểm tra `.env.master` có `POSTGRES_PASSWORD=123456` chưa. Hoặc password của bạn không phải `123456` - chạy `./scripts/station-fix-and-test.sh` để fix |
+| Bạn không biết mình là station nào | Quay lại mục 1 header "## 1. VAI TRÒ CỦA BẠN" - tìm tên bạn (Tuấn / Thông / Quang Anh / Ngọc Bích / Minh Dũng) |
 
 ---
 
@@ -343,20 +341,24 @@ docker compose -f docker-compose.station.yml --env-file .env.station -p football
 Setup (Windows):    irm https://raw.githubusercontent.com/GnauqTheBeast/football-station/btl-fdw-import/scripts/setup-station.ps1 | iex
 Setup (Linux/Mac):  git clone -b btl-fdw-import https://github.com/GnauqTheBeast/football-station.git && cd football-station && docker network create football-net && cp .env.station.example .env.station
                     -> Sửa .env.station theo đúng vai trò (xem HƯỚNG_DẪN_STATION.md mục 1)
+                    -> NẾU LƯỚI SỬA: STATION_ID=N ./scripts/station-fix-and-test.sh  (auto-fix + test tới master)
 Up station:         docker compose -f docker-compose.station.yml --env-file .env.station -p football-station<N> up -d
 Báo Quang:          "Mình là <Tên>, station <N> (<CLB>), IP máy mình là 10.xxx"
 Test insert:        ./scripts/station-test-insert.sh
 Dọn test:           ./scripts/station-test-cleanup.sh
 psql vào DB:        docker exec -it football-station<N> psql -U postgres -d <db_name>
+Master IP Quang:    10.19.227.12:5430
 ```
 
 ---
 
 ## LƯU Ý QUAN TRỌNG
 
-1. **STATION_ID phải đúng** - mỗi người 1 số khác nhau (1-6). Nhập sai sẽ ghi đè lên station người khác trong cùng máy (hiếm khi xảy ra vì máy khác nhau, nhưng nếu ai chạy 2 container trên 1 máy sẽ lỗi).
-2. **POSTGRES_DB phải khớp STATION_ID** - script Windows tự làm, Linux/Mac phải tự sửa file `.env.station`.
-3. **Báo IP cho Quang** - bắt buộc, không thì master không kết nối được tới station của bạn qua FDW.
+1. **STATION_ID phải đúng** - mỗi người 1 số khác nhau (1, 2, 4, 5, 6 - **KHÔNG nhập 3**, station 3 đã bỏ khỏi demo). Nhập sai sẽ ghi đè lên station người khác trong cùng máy (hiếm khi xảy ra vì máy khác nhau, nhưng nếu ai chạy 2 container trên 1 máy sẽ lỗi).
+2. **POSTGRES_DB phải khớp STATION_ID** - script Windows tự làm, Linux/Mac phải tự sửa file `.env.station`. Hoặc dùng `./scripts/station-fix-and-test.sh` để auto-fix đầy đủ config + test tới master.
+3. **Báo IP cho Quang** - bắt buộc, không thì master không kết nối được tới station của bạn qua FDW. IP LAN hoặc ZeroTier đều được (miễn master ping được).
 4. **Password mặc định** `123456` - khởi tạo từ script, không đổi (master FDW user mapping dùng pwd này).
 5. **Restart máy sau khi cài Docker trên Windows** - Docker Desktop cần daemon bật sau boot.
 6. **Kiểm tra healthy trước khi test** - `docker ps` phải thấy `Up X seconds (healthy)`.
+7. **Test tới master trước khi báo IP** - chạy `./scripts/station-fix-and-test.sh` (hoặc `STATION_ID=N ./scripts/station-check.sh`) để verify 5 cấp: local Postgres, seed data, listen, pg_hba, ping tới master.
+8. **Master IP LAN của Quang** `10.19.227.12:5430` (mặc định trong script, có thể override `MASTER_HOST=10.x.x.x`).

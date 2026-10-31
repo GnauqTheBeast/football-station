@@ -56,8 +56,10 @@ fi
 echo "=== setup-fdw.sh: master container=$CONTAINER  db=$DB_NAME ==="
 for sid in 1 2 3 4 5 6; do
   host_var="STATION${sid}_HOST"
+  port_var="STATION${sid}_PORT"
   host="${!host_var:-station${sid}}"
-  echo "  Station $sid ($(get_name "$sid")): host=$host  db=$(get_db "$sid")"
+  port="${!port_var:-5432}"
+  echo "  Station $sid ($(get_name "$sid")): host=$host  port=$port  db=$(get_db "$sid")"
 done
 echo ""
 
@@ -69,22 +71,22 @@ echo "=== Bước 1-3: DROP + CREATE SERVER + USER MAPPING + SCHEMA ==="
 # Build SQL phần đầu - dùng template có sẵn
 TEMPLATE_FILE="$PROJECT_DIR/db/master/20_fdw_setup.sql"
 
-# Generate file tạm + substitute host
+# Generate file tạm + substitute host + port
 TMP_SQL_FULL="/tmp/fdw_setup_full_$(date +%s).sql"
-S1="${STATION1_HOST:-station1}"
-S2="${STATION2_HOST:-station2}"
-S3="${STATION3_HOST:-station3}"
-S4="${STATION4_HOST:-station4}"
-S5="${STATION5_HOST:-station5}"
-S6="${STATION6_HOST:-station6}"
+S1="${STATION1_HOST:-station1}"; P1="${STATION1_PORT:-5432}"
+S2="${STATION2_HOST:-station2}"; P2="${STATION2_PORT:-5432}"
+S3="${STATION3_HOST:-station3}"; P3="${STATION3_PORT:-5432}"
+S4="${STATION4_HOST:-station4}"; P4="${STATION4_PORT:-5432}"
+S5="${STATION5_HOST:-station5}"; P5="${STATION5_PORT:-5432}"
+S6="${STATION6_HOST:-station6}"; P6="${STATION6_PORT:-5432}"
 
 sed \
-  -e "s|__STATION1_HOST__|$S1|g" \
-  -e "s|__STATION2_HOST__|$S2|g" \
-  -e "s|__STATION3_HOST__|$S3|g" \
-  -e "s|__STATION4_HOST__|$S4|g" \
-  -e "s|__STATION5_HOST__|$S5|g" \
-  -e "s|__STATION6_HOST__|$S6|g" \
+  -e "s|__STATION1_HOST__|$S1|g" -e "s|__STATION1_PORT__|$P1|g" \
+  -e "s|__STATION2_HOST__|$S2|g" -e "s|__STATION2_PORT__|$P2|g" \
+  -e "s|__STATION3_HOST__|$S3|g" -e "s|__STATION3_PORT__|$P3|g" \
+  -e "s|__STATION4_HOST__|$S4|g" -e "s|__STATION4_PORT__|$P4|g" \
+  -e "s|__STATION5_HOST__|$S5|g" -e "s|__STATION5_PORT__|$P5|g" \
+  -e "s|__STATION6_HOST__|$S6|g" -e "s|__STATION6_PORT__|$P6|g" \
   "$TEMPLATE_FILE" > "$TMP_SQL_FULL"
 
 # Tách phần DROP + CREATE SERVER + USER MAPPING + SCHEMA (line 1-46) ra chạy trước

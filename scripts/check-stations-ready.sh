@@ -42,6 +42,16 @@ echo "=== check-stations-ready.sh ==="
 echo "Master container: $CONTAINER"
 echo "Env file       : $ENV_FILE  ($([ -f "$ENV_FILE" ] && echo 'found' || echo 'MISSING'))"
 echo ""
+echo "Lưu ý: Station 3 (Viettel) đã bỏ khỏi demo (team không có người). Tự SKIP."
+echo ""
+
+# Station 3 explicitly excluded (team không deploy station 3)
+EXCLUDED_STATIONS="${EXCLUDED_STATIONS:-3}"
+
+is_excluded() {
+  echo " $EXCLUDED_STATIONS " | grep -qw "$1"
+}
+
 printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
        ID CLB DB HOST ENV NET PG
 printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
@@ -49,11 +59,21 @@ printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
 
 ALL_OK=1
 for sid in 1 2 3 4 5 6; do
+  # Skip station đã loại khỏi demo
+  if is_excluded "$sid"; then
+    clb="$(get_clb "$sid")"; db="$(get_db "$sid")"
+    printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
+      "$sid" "$clb" "$db" "(excluded)" "SKIP" "-" "-"
+    continue
+  fi
+
   clb="$(get_clb "$sid")"
   db="$(get_db "$sid")"
   name="$(get_name "$sid")"
   host_var="STATION${sid}_HOST"
+  port_var="STATION${sid}_PORT"
   host="${!host_var:-}"
+  port="${!port_var:-5432}"
 
   # Cấp 1: ENV check
   if [ -z "$host" ] || [ "$host" = "station${sid}" ]; then
@@ -68,42 +88,44 @@ for sid in 1 2 3 4 5 6; do
   ENV_STATUS="OK"
 
   # Cấp 2: network reachability (pg_isready trong container master)
-  if ! docker exec "$CONTAINER" pg_isready -h "$host" -p "$DB_PORT" -t 3 -U postgres >/dev/null 2>&1; then
+  if ! docker exec -e PGPASSWORD=123456 "$CONTAINER" pg_isready -h "$host" -p "$port" -t 3 -U postgres >/dev/null 2>&1; then
     printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
-      "$sid" "$clb" "$db" "$host ($name)" "$ENV_STATUS" "FAIL" "-"
-    [ $VERBOSE -eq 1 ] && echo "    -> Master container không ping được $host:$DB_PORT. Báo ${name} kiểm tra IP/Postgres."
+      "$sid" "$clb" "$db" "$host:$port ($name)" "$ENV_STATUS" "FAIL" "-"
+    [ $VERBOSE -eq 1 ] && echo "    -> Master container không ping được $host:$port. Báo ${name} kiểm tra IP/Postgres."
     ALL_OK=0
     continue
   fi
   NET_STATUS="OK"
 
   # Cấp 3: SELECT 1 tới station DB
-  result=$(docker exec "$CONTAINER" psql -h "$host" -p "$DB_PORT" -U postgres -d "$db" \
+  result=$(docker exec -e PGPASSWORD=123456 "$CONTAINER" psql -h "$host" -p "$port" -U postgres -d "$db" \
            -t -A -c "SELECT 1;" 2>/dev/null || echo "ERR")
   if [ "$result" = "1" ]; then
     PG_STATUS="OK"
   else
     PG_STATUS="FAIL"
     ALL_OK=0
-    [ $VERBOSE -eq 1 ] && echo "    -> DB '$db' trên $host không query được. Có thể sai POSTGRES_DB hoặc chưa seed."
+    [ $VERBOSE -eq 1 ] && echo "    -> DB '$db' trên $host:$port không query được. Có thể sai POSTGRES_DB hoặc chưa seed."
     printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
-      "$sid" "$clb" "$db" "$host ($name)" "$ENV_STATUS" "$NET_STATUS" "$PG_STATUS"
+      "$sid" "$clb" "$db" "$host:$port ($name)" "$ENV_STATUS" "$NET_STATUS" "$PG_STATUS"
     continue
   fi
 
   # Bonus: count rows (chỉ nếu verbose hoặc OK để thay thế)
-  tran=$(docker exec "$CONTAINER" psql -h "$host" -p "$DB_PORT" -U postgres -d "$db" \
-         -t -A -c "SELECT COUNT(*) FROM tran_dau_chuyen_mon;" 2>/dev/null || echo "?")
-  sukien=$(docker exec "$CONTAINER" psql -h "$host" -p "$DB_PORT" -U postgres -d "$db" \
-         -t -A -c "SELECT COUNT(*) FROM su_kien_tran_dau;" 2>/dev/null || echo "?")
+  tran=$(docker exec -e PGPASSWORD=123456 "$CONTAINER" psql -h "$host" -p "$port" -U postgres -d "$db" \
+         -t -A -c "SELECT COUNT(*) FROM tran_dau_chuyen_mon;" 2>/dev/null | head -1)
+  [ -z "$tran" ] && tran="?"
+  sukien=$(docker exec -e PGPASSWORD=123456 "$CONTAINER" psql -h "$host" -p "$port" -U postgres -d "$db" \
+         -t -A -c "SELECT COUNT(*) FROM su_kien_tran_dau;" 2>/dev/null | head -1)
+  [ -z "$sukien" ] && sukien="?"
   printf "%-3s %-10s %-12s %-22s %-10s %-10s %-15s\n" \
-    "$sid" "$clb" "$db" "$host ($name)" "$ENV_STATUS" "$NET_STATUS" "$PG_STATUS ($tran/$sukien)"
+    "$sid" "$clb" "$db" "$host:$port ($name)" "$ENV_STATUS" "$NET_STATUS" "$PG_STATUS ($tran/$sukien)"
 done
 
 echo ""
 echo "=== TỔNG KẾT ==="
 if [ $ALL_OK -eq 1 ]; then
-  echo "  TẤT CẢ 6 STATION SẴN SÀNG. Có thể chạy: make setup-fdw"
+  echo "  TẤT CẢ 5 STATION SẴN SÀNG (skip: $EXCLUDED_STATIONS). Có thể chạy: make setup-fdw"
 else
   echo "  CÒN STATION FAIL (xem bảng). Cần: "
   echo "    1. Báo bạn có STATION_ID fail sửa/trường IP Postgres healthy rồi báo lại IP"
