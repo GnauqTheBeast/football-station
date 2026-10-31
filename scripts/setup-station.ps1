@@ -193,4 +193,12 @@ Write-Host ""
 Write-Host " psql vao station cua ban:" -ForegroundColor Cyan
 Write-Host "   docker exec -it football-station$n psql -U postgres -d $dbName"
 Write-Host ""
+Write-Host " TEST E2E (chay luc demo/bao ve):" -ForegroundColor Cyan
+Write-Host "   - Mac ban (station):  ./scripts/station-test-insert.sh"
+Write-Host "     -> Insert 1 tran_test rieng cua ban (MaTran=T$n+hash, cau_thu CT99$n)"
+Write-Host "   - Mac admin master:    make check-fdw"
+Write-Host "     -> Thay test row cua 5-6 station traverse FDW ve master"
+Write-Host "   - Kick tuong thich: 5 ban chay song song khong conflict (moi ban 1 STATION_ID)"
+Write-Host "   - Cleanup sau demo: ./scripts/station-test-cleanup.sh"
+Write-Host ""
 pause

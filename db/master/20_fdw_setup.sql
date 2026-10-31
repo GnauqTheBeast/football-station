@@ -54,6 +54,8 @@ IMPORT FOREIGN SCHEMA public LIMIT TO (tran_dau_chuyen_mon, su_kien_tran_dau) FR
 IMPORT FOREIGN SCHEMA public LIMIT TO (tran_dau_chuyen_mon, su_kien_tran_dau) FROM SERVER srv_minhdung_hagl INTO site6_hagl;
 
 -- 4. TÁI THIẾT VIEW TOÀN CỤC HỢP NHẤT TẤT CẢ CÁC TRẠM
+-- LEFT JOIN TRAN_DAU_DOANH_THU để các trận chưa có thông tin doanh thu (test,
+-- lịch mới) vẫn hiển thị với GiaVe/SoKhach = NULL.
 CREATE OR REPLACE VIEW vw_global_tran_dau AS
 SELECT 
     cm.MaTran, cm.MaVong, cm.MaDoiNha, cm.MaDoiKhach, cm.MaSan, cm.NgayGio,
@@ -72,7 +74,7 @@ FROM (
     UNION ALL
     SELECT * FROM site6_hagl.tran_dau_chuyen_mon
 ) cm
-JOIN TRAN_DAU_DOANH_THU dt ON cm.MaTran = dt.MaTran;
+LEFT JOIN TRAN_DAU_DOANH_THU dt ON cm.MaTran = dt.MaTran;
 
 CREATE OR REPLACE VIEW vw_global_su_kien_tran_dau AS
 SELECT * FROM site1_hnfc.su_kien_tran_dau

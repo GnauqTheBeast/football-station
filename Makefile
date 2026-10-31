@@ -10,7 +10,7 @@ MASTER       = master
 STATIONS     = station1 station2 station3 station4 station5 station6
 ALL_SVC      = $(MASTER) $(STATIONS)
 
-.PHONY: help up up-master up-station1 up-station2 up-station3 up-station4 up-station5 up-station6 up-app up-all down down-all reset ps logs setup-fdw verify psql-master psql-station1 psql-station2 psql-station3 psql-station4 psql-station5 psql-station6 dev test
+.PHONY: help up up-master up-station1 up-station2 up-station3 up-station4 up-station5 up-station6 up-app up-all down down-all reset ps logs setup-fdw verify verify-test check-fdw test-insert psql-master psql-station1 psql-station2 psql-station3 psql-station4 psql-station5 psql-station6 dev
 
 help:
 	@echo "=== Football DDB (postgres_fdw distributed) ==="
@@ -90,6 +90,24 @@ verify:
 	@echo "=== 5. Phân mảnh: số trận mỗi station ==="
 	@docker exec football-master psql -U postgres -d vleague_master -c "SELECT 'Site1 HNFC'    AS tram, COUNT(*) FROM site1_hnfc.tran_dau_chuyen_mon UNION ALL SELECT 'Site2 CAHN',    COUNT(*) FROM site2_cahn.tran_dau_chuyen_mon UNION ALL SELECT 'Site3 Viettel', COUNT(*) FROM site3_viettel.tran_dau_chuyen_mon UNION ALL SELECT 'Site4 HPFC',    COUNT(*) FROM site4_hpfc.tran_dau_chuyen_mon UNION ALL SELECT 'Site5 NDFC',    COUNT(*) FROM site5_ndfc.tran_dau_chuyen_mon UNION ALL SELECT 'Site6 HAGL',    COUNT(*) FROM site6_hagl.tran_dau_chuyen_mon;"
 
+# === E2E test demo (FDW cross-site) ===
+# Trên TRẠM (bạn bè): chèn 1 test match + event
+test-insert:
+	@./scripts/station-test-insert.sh --commit
+
+test-insert-dry:
+	@./scripts/station-test-insert.sh --rollback
+
+test-cleanup:
+	@./scripts/station-test-cleanup.sh
+
+# Trên MASTER (admin): kiểm tra test rows đã tới qua FDW
+check-fdw:
+	@./scripts/master-check-fdw.sh
+
+# Tên alias cho đầy đủ: verify-test = check-fdw
+verify-test: check-fdw
+
 # === Trạng thái ===
 ps:
 	@docker compose ps
@@ -123,5 +141,3 @@ down-app:
 
 dev:
 	cd app && npm install && npm run dev
-
-test: verify
