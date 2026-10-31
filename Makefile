@@ -20,12 +20,13 @@ MASTER       = master
 STATIONS     = station1 station2 station3 station4 station5 station6
 ALL_SVC      = $(MASTER) $(STATIONS)
 
-.PHONY: help up up-master up-station1 up-station2 up-station3 up-station4 up-station5 up-station6 up-app up-all down down-all reset ps logs setup-fdw verify verify-test check-fdw test-insert psql-master psql-station1 psql-station2 psql-station3 psql-station4 psql-station5 psql-station6 dev
+.PHONY: help up up-master up-station1 up-station2 up-station3 up-station4 up-station5 up-station6 up-app up-all down down-all reset ps logs setup-fdw check-stations verify verify-test check-fdw test-insert psql-master psql-station1 psql-station2 psql-station3 psql-station4 psql-station5 psql-station6 dev
 
 help:
 	@echo "=== Football DDB (postgres_fdw distributed) ==="
 	@echo "up-all          Start all 7 containers (master + 6 stations)"
 	@echo "setup-fdw       Run fdw import sau khi all containers healthy"
+	@echo "check-stations  Check 6 station ready (env IP + reachable + Postgres SELECT 1)"
 	@echo "verify          Test views toan cuc sau khi setup-fdw"
 	@echo "psql-master     psql vao master DB (vleague_master)"
 	@echo "psql-stationN   psql vao station N (N=1..6)"
@@ -82,6 +83,10 @@ reset:
 	@$(MAKE) --no-print-directory wait-healthy
 	@echo "=== Chạy setup-fdw ==="
 	@./scripts/setup-fdw.sh
+
+# === Check 6 station ready trước khi setup-fdw ===
+check-stations:
+	./scripts/check-stations-ready.sh
 
 # === fdw: import foreign schema từ 6 stations về master ===
 setup-fdw:
