@@ -10,14 +10,27 @@
 #   trong .env.master, rồi: make setup-fdw
 set -e
 
-CONTAINER="${MASTER_CONTAINER:-football-master}"
-DB_USER="${POSTGRES_USER:-postgres}"
-DB_NAME="${POSTGRES_DB:-vleague_master}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 TEMPLATE_FILE="$PROJECT_DIR/db/master/20_fdw_setup.sql"
 
-# Lấy host của từng station từ env (default = docker service alias)
+# Auto-load .env.master nếu có (chứa STATION<N>_HOST + POSTGRES_*)
+ENV_FILE="$PROJECT_DIR/.env.master"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ENV_FILE"
+  set +a
+  echo "=== Loaded $ENV_FILE ==="
+else
+  echo "=== WARNING: .env.master not found - dùng giá trị default từ shell env ==="
+fi
+
+CONTAINER="${MASTER_CONTAINER:-football-master}"
+DB_USER="${POSTGRES_USER:-postgres}"
+DB_NAME="${POSTGRES_DB:-vleague_master}"
+
+# Lấy host của từng station từ env (default = docker service alias khi chạy chung 1 máy)
 S1="${STATION1_HOST:-station1}"
 S2="${STATION2_HOST:-station2}"
 S3="${STATION3_HOST:-station3}"

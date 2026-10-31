@@ -5,6 +5,16 @@ COMPOSE      = docker compose
 PROJECT      = football-ddb
 APP          = $(COMPOSE) --profile app
 
+# Auto-source .env.master nếu file tồn tại (chứa STATION<N>_HOST,
+# POSTGRES_PASSWORD, MASTER_CONTAINER). setup-fdw.sh tự load nhưng này
+# giữ cho target khác cũng kế thừa env khi cần.
+ifeq (,$(filter $(MAKECMDGOALS),help ps logs dev))
+  ifneq (,$(wildcard .env.master))
+    include .env.master
+    export
+  endif
+endif
+
 # Services
 MASTER       = master
 STATIONS     = station1 station2 station3 station4 station5 station6
