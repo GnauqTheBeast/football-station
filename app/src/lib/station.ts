@@ -1,38 +1,49 @@
-// src/lib/station.ts - Resolve the StationInfo for this app instance
-// using STATION_ID env var. Master has STATION_ID=0 and no station row.
-import { query, getStationId, getRole } from "./db";
-import type { StationInfo } from "./types";
+// src/lib/station.ts - Meta 5 station + station health trên master.
+import { querySafe, getStationId, getRole } from "./db";
+import type { StationMeta, StationHealth, StationInfo } from "./types";
 
-export async function getStationInfo(): Promise<StationInfo | null> {
-  const stationId = getStationId();
+// Station 3 (Viettel) bỏ demo vì team không có người.
+export const STATIONS: StationMeta[] = [
+  { id: 1, club: "HNFC", db: "vleague_hnfc", schema: "site1_hnfc", server: "srv_tuan_hnfc", san: "SAN_HD" },
+  { id: 2, club: "CAHN", db: "vleague_cahn", schema: "site2_cahn", server: "srv_thong_cahn", san: "SAN_HD" },
+  { id: 4, club: "HPFC", db: "vleague_haiphong", schema: "site4_hpfc", server: "srv_quanganh_hpfc", san: "SAN_LT" },
+  { id: 5, club: "NDFC", db: "vleague_namdinh", schema: "site5_ndfc", server: "srv_bich_ndfc", san: "SAN_TT" },
+  { id: 6, club: "HAGL", db: "vleague_hagl", schema: "site6_hagl", server: "srv_minhdung_hagl", san: "SAN_PK" },
+];
+
+export async function getStationInfo(): Promise<StationInfo> {
   const role = getRole();
-  if (stationId === 0 || role === "master") {
-    // Master app: not bound to a particular station.
-    return {
-      station_id: 0,
-      station_name: "Master (central)",
-      region: "-",
-      stadium_id: 0,
-      stadium_name: "-",
-      capacity: 0,
-      role: "master",
-    };
+  if (role === "master") {
+    return { station_id: 0, station_name: "Master (VFF Trung tâm)", club: "-", role: "master" };
   }
+  const id = getStationId();
+  const meta = STATIONS.find((s) => s.id === id);
+  return {
+    station_id: id,
+    station_name: meta ? `Station ${id} (${meta.club})` : `Station ${id} (chưa rõ CLB)`,
+    club: meta?.club ?? "?",
+    role: "station",
+  };
+}
 
-  const rows = await query<StationInfo>(
-    `SELECT  s.station_id,
-              s.name    AS station_name,
-              s.region,
-              st.stadium_id,
-              st.name    AS stadium_name,
-              st.capacity
-       FROM ref.station s
-       LEFT JOIN ref.stadium st ON st.station_id = s.station_id
-       WHERE s.station_id = $1
-       LIMIT 1`,
-    [stationId]
+// Health: schema foreign đã IMPORT chưa + đếm trận. Null = master chưa có view.
+export async function getStationsHealth(): Promise<StationHealth[] | null> {
+  const imported = await querySafe<{ schema: string }>(
+    `SELECT DISTINCT table_schema AS schema FROM information_schema.tables
+     WHERE table_type = 'FOREIGN' AND table_name = 'tran_dau_chuyen_mon'`
   );
-
-  if (rows.length === 0) return null;
-  return { ...rows[0], role: "station" };
+  if (!imported) return null;
+  const have = new Set(imported.map((r) => r.schema));
+  const out: StationHealth[] = [];
+  for (const s of STATIONS) {
+    if (!have.has(s.schema)) {
+      out.push({ ...s, imported: false, tranCount: null });
+      continue;
+    }
+    const cnt = await querySafe<{ c: string }>(
+      `SELECT COUNT(*)::text AS c FROM ${s.schema}.tran_dau_chuyen_mon`
+    );
+    out.push({ ...s, imported: true, tranCount: cnt ? Number(cnt[0].c) : null });
+  }
+  return out;
 }

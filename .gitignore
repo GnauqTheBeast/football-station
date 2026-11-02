@@ -7,6 +7,12 @@
 .env.station
 .env.station[1-9]
 .env.station[1-9][0-9]
+.env.hagl
+.env.*.local
 .env.master
 .env.master.bak.local
 app/.env.local
+
+# Build / local artifacts
+app/tsconfig.tsbuildinfo
+package-lock.json

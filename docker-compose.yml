@@ -60,7 +60,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-vleague_master}
       NODE_ROLE: master                          # App query master (vw_global_*)
     ports:
-      - "3000:3000"
+      - "6789:6789"
     profiles: ["app"]
     restart: unless-stopped
     networks:

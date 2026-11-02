@@ -1,13 +1,12 @@
-// src/lib/db.ts - PostgreSQL connection pool (server-only)
+// src/lib/db.ts - PostgreSQL connection pool (server-only).
+// Master: vleague_master (port 5430 host). Station: DB sân nhà của mình.
 import { Pool } from "pg";
 
-// All env vars are read at module load time (server-side only).
-// Sent through docker-compose env or .env.local in dev.
 const host = process.env.POSTGRES_HOST ?? "localhost";
 const port = Number(process.env.POSTGRES_PORT ?? 5430);
-const user = process.env.POSTGRES_USER ?? "admin";
-const password = process.env.POSTGRES_PASSWORD ?? "admin123";
-const database = process.env.POSTGRES_DB ?? "football";
+const user = process.env.POSTGRES_USER ?? "postgres";
+const password = process.env.POSTGRES_PASSWORD ?? "123456";
+const database = process.env.POSTGRES_DB ?? "vleague_master";
 
 if (!host) {
   throw new Error("POSTGRES_HOST env var required by db.ts");
@@ -39,7 +38,18 @@ export async function query<T = Record<string, any>>(
   return res.rows as unknown as T[];
 }
 
-// Read once per request - the station this app instance represents.
+// Trả về null thay vì throw để UI tự hiện empty state khi station offline.
+export async function querySafe<T = Record<string, any>>(
+  text: string,
+  params?: (string | number | null)[]
+): Promise<T[] | null> {
+  try {
+    return await query<T>(text, params);
+  } catch {
+    return null;
+  }
+}
+
 export function getStationId(): number {
   const v = process.env.STATION_ID ?? "0";
   const n = Number(v);
@@ -47,5 +57,5 @@ export function getStationId(): number {
 }
 
 export function getRole(): "master" | "station" {
-  return process.env.NODE_ROLE === "master" ? "master" : "station";
+  return process.env.NODE_ROLE === "station" ? "station" : "master";
 }
