@@ -1,439 +1,322 @@
-# Football DDB - Hướng dẫn khởi động & vận hành
+# SETUP - Hệ CSDL phân tán V-League (postgres_fdw)
 
-Hệ thống PostgreSQL logical replication giữa **Master** (máy chủ, sở hữu dữ liệu tham chiếu `ref.*`) và **Station** (máy trạm, sở hữu dữ liệu trận đấu `match.*`). Replication **hai chiều nhưng phân quyền bảng** - không bao giờ loop.
+Hướng dẫn chi tiết thiết lập hệ thống 1 Master + 6 Station qua `postgres_fdw`, dùng ZeroTier VPN mesh cho kết nối xuyên mạng.
 
-```text
-Station  ── match.match_result, match_squad, match_event ──>  Master
-Master   ── ref.* (station, season, round, stadium, team, ...) ──>  Station
-```
+## Mục lục
 
-| Schema | Số bảng | Ai có quyền ghi | Hướng replication |
+1. [Tổng quan kiến trúc](#1-tong-quan-kien-truc)
+2. [Yêu cầu môi trường](#2-yeu-cau-moi-truong)
+3. [Setup Master (máy bạn - admin)](#3-setup-master)
+4. [Setup Station cho bạn bè (Windows)](#4-setup-station-windows)
+5. [Setup Station cho bạn bè (Linux/Mac)](#5-setup-station-linuxmac)
+6. [ZeroTier VPN mesh](#6-zerotier-vpn-mesh)
+7. [Setup FDW từ Master tới 6 Station](#7-setup-fdw)
+8. [Verify hệ thống](#8-verify)
+9. [Demo test khi bảo vệ](#9-demo-test)
+10. [Troubleshooting](#10-troubleshooting)
+
+---
+
+## 1. Tổng quan kiến trúc
+
+### Lược đồ phân mảnh
+
+| Loại phân mảnh | Bảng | Vị trí | Mô tả |
 |---|---|---|---|
-| `ref.*` | 12 | Master | Master → Station |
-| `match.*` | 3 | Station | Station → Master |
+| Mảnh dọc | `TRAN_DAU_DOANH_THU` (MaTran, GiaVe, SoKhach) | Chỉ Master | Tài chính giải - chỉ VFF nắm |
+| Mảnh ngang nguyên thủy | `SAN_VAN_DONG` theo `KhuVuc IN ('MienBac','MienNam')` | Station theo region | BTL-CSDL spec |
+| Mảnh ngang dẫn xuất cấp 1 | `TRAN_DAU_CHUYEN_MON` (SEMI-JOIN SAN theo MaSan) | Mỗi Station 5 trận sân nhà | 30 trận / 6 station |
+| Mảnh ngang dẫn xuất cấp 2 | `SU_KIEN_TRAN_DAU` (SEMI-JOIN TRAN_DAU_CHUYEN_MON) | Theo station | 166 sự kiện tổng |
+| Danh mục nhân bản | SAN_VAN_DONG, DOI_BONG, CAU_THU, TRONG_TAI, VONG_DAU | Cả Master lẫn Station | Read-only replica trên station |
 
-Tham khảo thiết kế đầy đủ: [CSDL phân tán giải bóng đá.md](CSDL%20ph%C3%A2n%20t%C3%A1n%20gi%E1%BA%A3i%20b%C3%B3ng%20%C4%91%C3%A1.md).
+### Vai trò 6 thành viên
+
+| STATION_ID | CLB | DB Name | Trận sân nhà | ZeroTier IP | Người phụ trách |
+|---|---|---|---|---|---|
+| - | Master | `vleague_master` | 0 (chỉ tài chính + fdw) | `10.147.17.10` | Nguyễn Ngọc Quang |
+| 1 | HNFC (Hà Nội FC) | `vleague_hnfc` | TR01, TR07, TR13, TR19, TR25 | `10.147.17.11` | (Quang kiêm) |
+| 2 | CAHN (Công An Hà Nội) | `vleague_cahn` | TR02, TR11, TR20, TR22, TR29 | `10.147.17.12` | Hoàng Anh Tuấn |
+| 3 | VTT (Viettel) | `vleague_viettel` | TR03, TR08, TR21, TR26, TR28 | `10.147.17.13` | Mạnh Dũng |
+| 4 | HPFC (Hải Phòng) | `vleague_haiphong` | TR05, TR12, TR15, TR16, TR23 | `10.147.17.14` | Hồ Quang Anh |
+| 5 | NDFC (Nam Định) | `vleague_namdinh` | TR04, TR09, TR14, TR18, TR27 | `10.147.17.15` | Ngọc Bích |
+| 6 | HAGL | `vleague_hagl` | TR06, TR10, TR17, TR24, TR30 | `10.147.17.16` | Minh Dũng |
 
 ---
 
-## 1. Yêu cầu chung
+## 2. Yêu cầu môi trường
 
-- Docker Desktop (hoặc Docker Engine) đang chạy trên cả 2 máy.
-- Master và Station ở cùng mạng LAN (hoặc VPN Tailscale/ZeroTier) và **ping được IP nhau**.
-- **Cấm** sửa cùng một bảng ở cả 2 chiều → sẽ xung đột. Quy tắc sở hữu bảng:
+**Master (máy bạn)**:
+- Docker Desktop >= 4.x hoặc Docker Engine >= 24
+- Docker Compose v2
+- `make` (macOS/Linux có sẵn; Windows cài qua `winget install GnuWin32.Make` hoặc dùng WSL)
+- ZeroTier client (xem ZEROTIER.md)
+- Git
 
-| Bảng | Ai có quyền ghi | Hướng replication |
-|---|---|---|
-| `ref.station`, `ref.season`, `ref.round`, `ref.stadium`, `ref.team`, `ref.team_kit`, `ref.player`, `ref.referee`, `ref.role_pay`, `ref.registration`, `ref.fixture`, `ref.match_referee` | Master | Master → Station |
-| `match.match_result`, `match.match_squad`, `match.match_event` | Station | Station → Master |
+**Station (máy bạn bè)**:
+- Docker Desktop
+- ZeroTier client
+- Git (tùy chọn, script Windows tự cài)
+
+Không cần PostgreSQL cài trực tiếp trên host - tất cả chạy trong Docker container.
 
 ---
 
-## 2. Thứ tự khởi động (BẮT BUỘC)
+## 3. Setup Master
 
-> **Master phải up TRƯỚC Station.** Station `make start-station` sẽ psql sang master để tạo subscription - nếu master chưa sẵn sàng thì script fail.
-
-### Bước 2.1 - Master (máy chủ, ví dụ `172.18.20.106`)
+Trên máy bạn (admin).
 
 ```bash
-cd football-ddb
-
-# Lần đầu: tạo docker network với subnet cố định (tránh xung đột với LAN 172.18.x.x)
-docker network create --subnet 10.200.0.0/24 football-net
-
-# Khởi động master (init-node.sh tự chạy: tạo ref.* + match.* + publications + seed)
-make up-master
-# hoặc: docker compose -p football-master --env-file .env.master -f docker-compose.yml up -d
-
-# Đợi healthy (Status phải = "healthy")
-docker inspect -f '{{.State.Health.Status}}' football-master
-```
-
-Kiểm tra master sẵn sàng:
-
-```bash
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c "SELECT pubname FROM pg_publication;"
-#  → phải thấy: master_publication
-
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c "SELECT count(*) AS teams FROM ref.team; SELECT count(*) AS fixtures FROM ref.fixture;"
-#  → teams=4, fixtures=2 (sau khi seed)
-```
-
-### Bước 2.2 - Station (máy trạm, ví dụ `172.18.20.9`)
-
-```bash
+git clone -b btl-fdw-import https://github.com/GnauqTheBeast/football-station.git
 cd football-station
-git pull           # lấy script mới nhất
 
-# Chạy 1 lệnh duy nhất - script tự lo cả 2 chiều:
-make start-station
+# 1. Tạo network Docker (chỉ 1 lần)
+docker network create football-net
+
+# 2. Sửa .env.master nếu cần (mặc định OK cho dev local):
+cat .env.master
+# STATION1_HOST=station1 ... (sẽ override bằng IP ZeroTier khi triển khai thực)
+
+# 3. Up master container
+make up                          # hoặc: docker compose --env-file .env.master up -d
+# Master healthy trong ~10s, init-data.sql chạy (load TRAN_DAU_DOANH_THU + CAU_THU)
+
+# 4. Verify data master local
+docker exec football-master psql -U postgres -d vleague_master -c "SELECT COUNT(*) FROM tran_dau_doanh_thu;"
+#  -> 30 (matches doanh thu 30 tran)
+docker exec football-master psql -U postgres -d vleague_master -c "SELECT COUNT(*) FROM cau_thu;"
+#  -> 22 (danh muc cau thu de tra cuu vua pha luoi)
 ```
 
-`make start-station` sẽ tự động:
-
-1. Tạo/join docker network `football-net` (subnet `10.200.0.0/24`)
-2. `docker compose up -d` station container (port `5431`)
-3. Đợi postgres healthy
-4. Áp dụng migration `/db/common/*.sql` (ref.* + match.* + triggers + views) + `/db/station/*.sql` (publication)
-5. Tạo `master_subscription` trên station (master → station, kéo `ref.*`) - snapshot seed data trôi từ master xuống
-6. **Tự psql sang master** tạo `station_subscription` (station → master, master kéo `match.*`)
-7. In trạng thái subscription cả 2 phía
-8. Listen log station - `Ctrl-C` để thoát listen (replication vẫn chạy nền)
-
-> 🟢 Sau bước này **không cần thao tác thủ công nào trên master nữa** - 2 chiều replication đã lên.
+Lúc này master **chưa có`vw_global_tran_dau`** - cần chờ 6 station healthy qua ZeroTier rồi `make setup-fdw`.
 
 ---
 
-## 3. Verify 2 chiều đang chạy
+## 4. Setup Station (Windows)
 
-Chạy trên **Master**:
+Mỗi bạn bè làm trên máy mình:
 
-```bash
-# Subscription trên master (phải có station_subscription):
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c \
-  "SELECT subname, subenabled FROM pg_subscription;"
-
-# Replication slot (active=t là đang streaming):
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c \
-  "SELECT slot_name, active, active_pid FROM pg_replication_slots;"
-
-# Walsender đang kết nối tới master:
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c \
-  "SELECT pid, application_name, client_addr, state FROM pg_stat_replication;"
+```powershell
+# PowerShell Run as Administrator
+# Tải scripts/setup-station.ps1 về hoặc chay 1 lệnh inline:
+irm https://raw.githubusercontent.com/GnauqTheBeast/football-station/btl-fdw-import/scripts/setup-station.ps1 | iex
 ```
 
-Kết quả mong đợi:
+Script tự động:
+1. Cài Docker Desktop / git nếu thiếu
+2. Clone repo về `football-station/`
+3. Tạo docker network `football-net`
+4. Hỏi **STATION_ID** (1..6 - match CLB nào)
+5. Tạo `.env.station` với `POSTGRES_DB` đúng (vd station2=CAHN → `vleague_cahn`)
+6. `docker compose -f docker-compose.station.yml --env-file .env.station -p football-station<N> up -d`
+7. Đợi healthy, kiểm tra data
+8. Lấy **IP ZeroTier** của máy bạn, in ra hướng dẫn báo admin master
 
-```
- subname             | subenabled
- station_subscription | t
-
- slot_name      | active | active_pid
- master_slot_s1 | t      | <pid>       ← master → station (master holds slot for the other side)
- station_slot_s1 | t     | <pid>       ← station → master
-
- state=streaming cho walsender đang kết nối tới station
-```
+Sau khi script hoàn tất:
+- Station container `football-station<N>` đang chạy, port `5431`
+- DB đã có 5 trận + ~25 sự kiện (data verbatim từ BTL-CSDL)
+- Bạn báo admin master: *"Tôi là station 2 (CAHN), IP ZeroTier của tôi `10.147.17.12`"*
 
 ---
 
-## 4. Test 2 chiều
-
-### 4.1 Station → Master (`match.*`) - qua Makefile
+## 5. Setup Station (Linux/Mac)
 
 ```bash
-# Insert match.match_result trên Station (station_id=1, fixture_id=1 đã seed):
-make verify-station
+git clone -b btl-fdw-import https://github.com/GnauqTheBeast/football-station.git
+cd football-station
+docker network create football-net
 
-# Tương đương SQL:
-#   INSERT INTO match.match_result(station_id, fixture_id, played_at, home_goals, away_goals, attendance, ticket_price)
-#   VALUES (1, 1, now() - interval '1 hour', 2, 1, 5000, 100000)
-#   ON CONFLICT (station_id, fixture_id) DO UPDATE SET ...;
+# Copy template
+cp .env.station.example .env.station
+# Sua 2 dong:
+#   STATION_ID=2
+#   POSTGRES_DB=vleague_cahn          # (match STATION_ID)
+$EDITOR .env.station
 
-# Đợi 2s và đọc trên master:
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c \
-  "SELECT station_id, fixture_id, played_at, home_goals, away_goals, attendance FROM match.match_result ORDER BY played_at DESC LIMIT 5;"
-```
+# Up station
+docker compose -f docker-compose.station.yml \
+  --env-file .env.station \
+  -p football-station2 up -d
 
-→ Phải thấy row mới trên master.
-
-### 4.2 Master → Station (`ref.*`)
-
-```bash
-# Sửa ref.team trên Master:
-make verify-master
-
-# Tương đương SQL:
-#   UPDATE ref.team SET name = 'Master FC <timestamp>' WHERE team_id = 1;
-
-# Đợi 2s và đọc trên Station (query từ master container qua LAN tới station):
-sleep 2
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -h 172.18.20.9 -p 5431 -U admin -d football -c \
-  "SELECT team_id, name, founded_year FROM ref.team ORDER BY team_id LIMIT 5;"
-```
-
-→ Station phải thấy `name` đã đổi.
-
-### 4.3 Trigger constraint (test ràng buộc logic)
-
-Trigger validate ở gốc - replication apply thì skip. Thử trên master:
-
-```bash
-# Thử thêm 2 main referees cho cùng fixture → phải FAIL (trigger từ chối):
-docker exec -e PGPASSWORD=admin123 football-master psql -U admin -d football -c \
-  "INSERT INTO ref.match_referee(fixture_id, referee_id, role)
-   SELECT fixture_id, 16, 'main' FROM ref.fixture LIMIT 1;" 2>&1 | tail -3
-# → ERROR: Fixture <X>: at most 1 main referee
+# Verify
+docker exec football-station2 psql -U postgres -d vleague_cahn -c \
+  "SELECT COUNT(*) FROM tran_dau_chuyen_mon; SELECT COUNT(*) FROM su_kien_tran_dau;"
 ```
 
 ---
 
-## 5. Shutdown (ngược thứ tự startup)
+## 6. ZeroTier VPN mesh
 
-> **Station down trước, Master down sau.** Tránh station đang giữ slot trên master.
+Xem **ZEROTIER.md** đầy đủ. Tóm lược:
 
-```bash
-# Bước 1 - Station:
-make stop-station
-# hoặc: docker compose -p football-station --env-file .env.station down
+1. Admin (bạn) đăng ký my.zerotier.com, tạo network `Football DDB`, set IP cố định `10.147.17.10` cho máy master.
+2. Phát **Network ID** cho 6 thành viên.
+3. Mỗi member: cài ZeroTier client, Join Network ID, báo bạn authorize trong admin console.
+4. Set IP cố định cho mỗi station: `10.147.17.11` (HNFC), `.12` (CAHN), `.13` (Viettel), `.14` (HPFC), `.15` (NDFC), `.16` (HAGL).
 
-# Bước 2 - Master:
-make down-master
-# hoặc: docker compose -p football-master --env-file .env.master down
-```
-
-`make down` chạy cả 2. Volume giữ nguyên → lần up sau luôn có schema + data. **Không** dùng `-v` trừ khi muốn reset toàn bộ.
-
----
-
-## 6. Reset toàn bộ (khi sửa DDL trong `db/`)
+Test ping 2 chiều Master ↔ Station:
 
 ```bash
-# Master:
-docker compose -p football-master --env-file .env.master down -v
-# Station:
-docker compose -p football-station --env-file .env.station down -v
-# Network (không bắt buộc - subnet đã đúng):
-docker network rm football-net 2>/dev/null
-docker network create --subnet 10.200.0.0/24 football-net
+# Master ping từng station:
+docker exec football-master sh -c "pg_isready -h 10.147.17.11 -p 5432 -U postgres"
+#  -> accepting connections
 
-# Rồi làm lại từ Bước 2.1.
+# Station ping master:
+docker exec football-station1 sh -c "pg_isready -h 10.147.17.10 -p 5432 -U postgres"
 ```
 
-Init SQL trong `docker-entrypoint-initdb.d` **chỉ chạy khi volume trống** - `down -v` xóa volume để init chạy lại. Sau khi reset master, **bắt buộc reset cả station** (vì schema `ref.*` đã thay đổi, station replicate sẽ fail nếu schema cũ lệch).
+---
+
+## 7. Setup FDW
+
+Trên máy master, sau khi 6 stations đã healthy và ping được:
+
+```bash
+# Sửa .env.master: set STATION<N>_HOST = IP ZeroTier của station N
+cat .env.master
+# STATION1_HOST=10.147.17.11
+# STATION2_HOST=10.147.17.12
+# STATION3_HOST=10.147.17.13
+# STATION4_HOST=10.147.17.14
+# STATION5_HOST=10.147.17.15
+# STATION6_HOST=10.147.17.16
+
+# Chạy setup-fdw (substitute template + IMPORT FOREIGN SCHEMA):
+make setup-fdw
+```
+
+`setup-fdw.sh` làm:
+1. Substitute `__STATION<N>_HOST__` trong `db/master/20_fdw_setup.sql` bằng giá trị từ env.
+2. `docker exec -i football-master psql < template` để chạy:
+   - `CREATE EXTENSION postgres_fdw` (đã có từ init)
+   - `DROP SCHEMA site1_hnfc..site6_hagl CASCADE; DROP SERVER IF EXISTS srv_* CASCADE;` (idempotent)
+   - `CREATE SERVER srv_tuan_hnfc ..` (6 servers, mỗi server trỏ tới 1 station DB qua IP ZeroTier)
+   - `CREATE USER MAPPING FOR postgres SERVER srv_* OPTIONS (user 'postgres', password '123456')`
+   - `CREATE SCHEMA site1_hnfc .. site6_hagl` (6 schemas local chứa foreign tables)
+   - `IMPORT FOREIGN SCHEMA public LIMIT TO (tran_dau_chuyen_mon, su_kien_tran_dau)` từ 6 servers
+   - `CREATE VIEW vw_global_tran_dau` - UNION ALL 6 tran_dau_chuyen_mon + JOIN tran_dau_doanh_thu
+   - `CREATE VIEW vw_global_su_kien_tran_dau` - UNION ALL 6 su_kien_tran_dau
+   - `CREATE VIEW vw_bang_xep_hang` - BXH từ `vw_global_tran_dau`
+   - `CREATE FUNCTION fn_top10_vua_pha_luoi()` - top 10 vua phá lưới
+
+**Idempotent**: Có thể chạy lại nhiều lần, script DROP cũ trước khi CREATE mới. Thích hợp khi station thay đổi IP ZeroTier hoặc thêm station mới.
 
 ---
 
-## 7. Thêm Station mới / 6 stations song song
+## 8. Verify
 
-> 1 master + 6 stations song song: cần `station_id` riêng (1..6) cho mỗi station. Tên subscription/slot tự động thêm hậu tố theo `STATION_ID` (vd `station3_subscription`, `station3_slot`).
+```bash
+make verify
+```
 
-### 7.1 Cách khác LAN (DHCP/NAT/4G/network khác) - dùng ZeroTier VPN mesh
+Output mong đợi:
 
-Nếu master và stations không cùng LAN, dùng ZeroTier để mỗi máy có IP cố định, không cần mở port. Xem hướng dẫn đầy đủ:
+```
+=== 1. Đếm trận từ vw_global_tran_dau ===
+ tong_tran = 30
 
-**[ZEROTIER.md](ZEROTIER.md)** - Setup VPN mesh cho team 7 người (1 master + 6 stations), dùng IP ZeroTier thay cho IP LAN trong `.env`.
+=== 2. Đếm sự kiện ===
+ tong_su_kien = 166
 
-### 7.2 Cùng LAN - thêm Station 2 (ví dụ IP `172.18.20.15`)
+=== 3. BXH ===
+ vitri | madoi | sotrandadau | sotranthang | ... | diemso
+     1 | NDFC  |          10 |           8 | ... |     26
+     2 | HNFC  |          10 |           6 | ... |     21
+     3 | CAHN  |          10 |           4 | ... |     15
+     4 | VTT   |          10 |           3 | ... |     13
+     5 | HPFC  |          10 |           1 | ... |      4
+     6 | HAGL  |          10 |           1 | ... |      4
 
-1. Trên máy Station 2: chạy `setup-station.ps1`, nhập `STATION_ID=2` khi được hỏi (script sẽ sinh tên subscription/slot tương ứng).
-2. Hoặc copy `.env.station` → `.env.station2`, sửa các dòng:
-   - `STATION_ID=2`
-   - `CONTAINER_NAME=football-station2`
-   - `POSTGRES_PORT=5432`  *(port host khác station 1)*
-   - `NETWORK_ALIAS=station2`
-   - `REPLICATION_SLOT=master_slot_s2`
-   - `STATION_PUBLIC_HOST=172.18.20.15`
-   - `STATION_PUBLIC_PORT=5432`
-3. Trên máy Station 2: `ENV_FILE=.env.station2 make start-station`
+=== 4. Top 10 vua phá lưới ===
+ xephang | macauthu |       hoten       | sobanthang
+       1 | CT064    | Rafaelson Bezerra |         13
+       ...
 
-### 7.3 Quy ước tên subscription/slot theo `STATION_ID`
-
-| `STATION_ID` | Subscription name (master) | Slot name |
-|---|---|---|
-| 1 | `station1_subscription` | `station1_slot` |
-| 2 | `station2_subscription` | `station2_slot` |
-| ... | ... | ... |
-| 6 | `station6_subscription` | `station6_slot` |
-
-Script `register-with-master.sh` và `subscribe.sh` đều tự động sinh tên này từ `STATION_ID`, không cần sửa script thủ công.
+=== 5. Phân mảnh: số trận mỗi station ===
+ Site1 HNFC    |     5
+ Site2 CAHN    |     5
+ ...
+ Site6 HAGL    |     5
+```
 
 ---
 
-## 8. Lỗi thường gặp
+## 9. Demo test
+
+Khuyến nghị demo theo `db/reference/07_demo_test_queries.sql`. Tóm lược kịch bản demo khi bảo vệ:
+
+### Demo 1: Tính trong suốt vị trí & tái thiết dữ liệu
+
+```sql
+-- Master chạy:
+-- Đếm tổng trận/khán giả/doanh thu toàn giải = UNION của 6 station DBs
+SELECT COUNT(*) AS TongSoTran, SUM(SoKhach) AS TongKhanGia,
+       SUM(GiaVe * SoKhach) AS TongDoanhThuVeToanGiai
+FROM vw_global_tran_dau;
+-- Kết quả: 30 trận, 460k khán giả, ~32 tỷ VND
+
+-- Chi tiết 30 trận hợp nhất từ 6 máy:
+SELECT MaTran, MaVong, MaDoiNha, MaDoiKhach, MaSan, BanThangNha, BanThangKhach, GiaVe, SoKhach
+FROM vw_global_tran_dau ORDER BY MaVong, MaTran;
+```
+
+### Demo 2: Thống kê vua phá lưới phân tán
+
+```sql
+SELECT * FROM fn_top10_vua_pha_luoi();
+-- Gom nhóm sự kiện bàn thắng từ 6 station + JOIN với CAU_THU master
+```
+
+### Demo 3: Cập nhật thời gian thực xuyên mạng
+
+```bash
+# Hồ Quang Anh (Station 4 - HPFC) thêm 1 bàn thắng trên máy mình:
+docker exec football-station4 psql -U postgres -d vleague_haiphong -c \
+  "INSERT INTO su_kien_tran_dau VALUES ('SK999', 'TR15', 'CT082', 'BanThang', 89);"
+
+# Quang (master) chạy lại câu lệnh vua phá lưới tại máy trung tâm:
+docker exec football-master psql -U postgres -d vleague_master -c \
+  "SELECT * FROM fn_top10_vua_pha_luoi() WHERE macauthu='CT082';"
+-- Ngay lập tức thấy Lucao do Break thêm 1 bàn (số bàn tăng từ 6 lên 7)
+```
+
+### Demo 4: Số bàn thắng từng station
+
+```sql
+SELECT 'Site1 HNFC'    AS Tram, COUNT(*) AS SoBan FROM site1_hnfc.su_kien_tran_dau    WHERE LoaiSuKien='BanThang'
+UNION ALL SELECT 'Site2 CAHN',    COUNT(*) FROM site2_cahn.su_kien_tran_dau    WHERE LoaiSuKien='BanThang'
+UNION ALL SELECT 'Site3 Viettel', COUNT(*) FROM site3_viettel.su_kien_tran_dau WHERE LoaiSuKien='BanThang'
+UNION ALL SELECT 'Site4 HPFC',    COUNT(*) FROM site4_hpfc.su_kien_tran_dau    WHERE LoaiSuKien='BanThang'
+UNION ALL SELECT 'Site5 NDFC',    COUNT(*) FROM site5_ndfc.su_kien_tran_dau    WHERE LoaiSuKien='BanThang'
+UNION ALL SELECT 'Site6 HAGL',    COUNT(*) FROM site6_hagl.su_kien_tran_dau    WHERE LoaiSuKien='BanThang';
+```
+
+---
+
+## 10. Troubleshooting
 
 | Triệu chứng | Nguyên nhân | Khắc phục |
 |---|---|---|
-| `Host is unreachable` khi station connect master | Subnet Docker `172.18.x.x` xung đột LAN | `docker network rm football-net && docker network create --subnet 10.200.0.0/24 football-net`; restart 2 container |
-| `publication "station_publication" does not exist` | Volume cũ chưa có publication | `down -v` rồi up lại (init SQL chỉ chạy khi volume trống) |
-| `replication slot "X" already exists` | Slot mồ côi từ lần cũ | `SELECT pg_drop_replication_slot('X')` (chỉ drop khi `active=false`) |
-| Station không nhận `ref.*` update | `master_subscription` chưa tạo / drop | Trên station: `docker exec football-station bash /subscribe-master.sh` |
-| Master không nhận `match.*` | `station_subscription` chưa có trên master | Chạy lại `make start-station` trên station (script tự đăng ký) |
-| `ALTER SUBSCRIPTION ... REFRESH PUBLICATION` báo "new table missing on subscriber" | Thêm bảng master sau khi sub đã tạo | Trên station: `ALTER SUBSCRIPTION master_subscription REFRESH PUBLICATION;` để đăng ký thêm bảng mới |
-| `DROP SUBSCRIPTION` lỗi "cannot run inside transaction" | Chạy trong block transaction | Issue `DROP SUBSCRIPTION` bằng `psql -c` riêng (không phải heredoc) |
-| `session_replication_role` cảnh báo "trigger được skip" | Bình thường - trigger skip khi apply replication | Đây là cơ chế mong muốn: validate 1 lần tại gốc |
+| `make setup-fdw` lỗi `could not connect to server "srv_*"` | ZeroTier IP của station chưa đúng / station container chưa healthy | Check `.env.master` STATION`<N>`_HOST = đúng IP ZeroTier. `docker ps` thấy station healthy |
+| `IMPORT FOREIGN SCHEMA` trả về 0 tables | Station chưa init data (init-node.sh chưa chạy vì volume đã có data cũ) | `docker compose -p football-station<N> -f docker-compose.station.yml down -v` rồi up lại |
+| Master `vw_global_tran_dau` trả về ít hơn 30 dòng | 1 hoặc vài station chưa authorize trong ZeroTier / chưa ping được | Test `docker exec football-master pg_isready -h <ip_zerotier> -p 5432 -U postgres` |
+| Station container exit ngay sau khi up | `.env.station` sai POSTGRES_DB không khớp STATION_ID | Xem bảng mapping ở section 1, sửa file .env.station, `down -v` rồi `up` lại |
+| Windows: `docker compose` không nhận | Docker Desktop chưa start | Khởi động Docker Desktop, đợi icon tray xanh |
+| Lỗi `permission denied` khi `docker exec ... psql` | POSTGRES_USER khác `postgres` | Set `POSTGRES_USER=postgres` trong .env (script Windows mặc định) |
+| `pg_hba.conf` reject host fdw | Station PG config mặc định reject remote | Đã sửa qua `command: postgres -c` trong compose - check `docker logs` |
+| Station data số trận != 5 | Init file của station N không đúng (đã override file nhầm) | So sánh `db/station_<N>/00_init.sql` với `db/reference/0<N>_worker_*.sql` từ BTL-CSDL |
+| Muốn đổi IP ZeroTier của station | Member đổi máy / Re-join ZeroTier | Member chạy `setup-station.ps1` lại, báo admin IP mới, admin sửa `.env.master` rồi `make setup-fdw` |
 
 ---
 
-## 9. Sơ đồ luồng dữ liệu
-
-```text
-┌──────────────────────────────────────┐  match.*  ┌──────────────────────────────────────┐
-│  MASTER (máy chủ)                    │ ────────> │  STATION (máy trạm)                  │
-│  Sở hữu 12 bảng ref.*                 │           │  Sở hữu 3 bảng match.*                │
-│                                      │           │                                      │
-│  match.match_result   <─── station_subscription  │  match.match_result  ─── station_publication
-│  match.match_squad      (master psql sang master) │  match.match_squad                    │
-│  match.match_event     để tạo subscription        │  match.match_event                    │
-│                                      │   ref.*   │                                      │
-│  ref.station          ─── master_publication ───> │  master_subscription                  │
-│  ref.team                          │             │  (station psql sang master tạo)      │
-│  ref.player                         │           │                                      │
-│  ref.fixture                        │           │                                      │
-│  ref.match_referee                  │           │                                      │
-│  ... ref.* (12 bảng)                 │           │                                      │
-└──────────────────────────────────────┘           └──────────────────────────────────────┘
-```
-
-Mỗi bảng có đúng 1 chủ ghi → không loop, không xung đột.
-
----
-
-## 10. File & thư mục quan trọng
-
-```
-football-ddb/
-├── docker-compose.yml              # Postgres 16-alpine, wal_level=logical
-├── .env.master                      # Env cho master (STATION_HOST trỏ station)
-├── .env.station                     # Env cho station (MASTER_HOST + STATION_PUBLIC_*)
-├── Makefile                         # up/down/subscribe/verify/start-station/stop-station
-├── db/
-│   ├── common/                      # Chạy trên mọi node (master + station)
-│   │   ├── 10_ref_schema.sql       # schema ref + 12 bảng master
-│   │   ├── 20_match_schema.sql     # schema match + 3 bảng station
-│   │   ├── 30_triggers.sql          # Trigger ràng buộc logic
-│   │   └── 40_views.sql             # View thống kê (xếp hạng, top 10, ...)
-│   ├── master/
-│   │   ├── 10_publication.sql     # CREATE PUBLICATION master_publication (12 bảng ref.*)
-│   │   └── 20_seed.sql             # Seed master (stations, season, teams, players, referees)
-│   └── station/
-│       └── 10_publication.sql     # CREATE PUBLICATION station_publication (3 bảng match.*)
-└── scripts/
-    ├── init-node.sh                 # Chạy trong container khi khởi tạo (entrypoint)
-    ├── subscribe.sh                 # Trên master: tạo station_subscription (master→station, kéo match.*)
-    ├── subscribe-master.sh         # Trên station: tạo master_subscription (station pull ref.*)
-    ├── register-with-master.sh      # Station tự đăng ký station_subscription trên master
-    ├── start-station.sh             # 1 lệnh duy nhất cho station: up+migrate+subscribe+register+listen
-    └── setup-station.ps1           # Bootstrap cho Windows: cài git/Docker, clone, hỏi IP, chạy start-station
-```
-
----
-
-## 11. Thiết kế & ràng buộc đầy đủ
-
-Tham khảo [CSDL phân tán giải bóng đá.md](CSDL%20ph%C3%A2n%20t%C3%A1n%20gi%E1%BA%A3i%20b%C3%B3ng%20%C4%91%C3%A1.md).
-
-Thiết kế implement các ràng buộc như sau:
-
-| Ràng buộc | Cách implement |
-|---|---|
-| PK, FK, NOT NULL, UNIQUE | Native (sẵn trong DDL) |
-| `shirt_no` 1-35, `attendance ≥ 0`, position in (GK,DF,MF,FW), v.v. | Native `CHECK` |
-| Player chỉ đ.footerFontSize 1 đội cùng thời điểm | `EXCLUDE gist (player_id =, period &&)` |
-| Số áo không trùng trong đội cùng thời điểm | `EXCLUDE gist (team_id =, shirt_no =, period &&)` |
-| Team có ≥ 2 màu áo | Trigger `team_kit_min_two_colors` |
-| MatchReferee: 1 main + 2 linesman + 1 table | Trigger `match_referee_role_dist` |
-| Fixture.kickoff trong round | Trigger `fixture_kickoff_in_round` |
-| MatchResult.played_at ≤ now() | Trigger `match_result_played_at_past` |
-| MatchSquad ≤ 18/team/match | Trigger `match_squad_checks` |
-| Cầu thủ trong squad phải đăng ký cho đội vào ngày đá | Trigger `match_squad_checks` |
-| MatchEvent.player phải nằm trong squad | Trigger `match_event_player_in_squad` |
-| Tổng goal events ≤ MatchResult tổng goals | Trigger `match_event_goal_count_bounds` + `match_result_goals_ge_events` |
-| Verify chính xác goals cuối trận | `SELECT match.verify_match_complete(station, fixture)` - app gọi |
-| Registration tối đa 30 người/đội | Trigger `reg_max_30_per_team` |
-| Double round-robin (8 đội × 2 lượt = 14 vòng) | App-level |
-| Trọng tài tối đa 1 trận/vòng | App-level |
-| Số đội chẵn, tối thiểu 6 | App-level |
-
-Trigger fires only at origin (default `ENABLE ORIGIN`), không fire trên subscriber → validate 1 lần tại nơi ghi, replication apply không trigger lại.
-
----
-
-## 12. Views (master-side reads)
-
-| View | Ý nghĩa |
-|---|---|
-| `ref.v_standings` | Bảng xếp hạng: P/W/D/L/GF/GA/GD/Pts |
-| `ref.v_top_scorers` | Top 10 vua phá lưới |
-| `ref.v_referee_pay` | Lương trọng tài theo mùa |
-| `ref.v_stadium_revenue` | Doanh thu sân theo mùa |
-| `ref.v_round_stats` | Thống kê mỗi vòng (goals, cards) |
-
-Đọc ví dụ (chạy trên master):
+## Reset toàn bộ (khi muôn làm sạch)
 
 ```bash
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c "SELECT * FROM ref.v_standings ORDER BY pts DESC;"
+# Master:
+make reset        # down -v + up lại (NUKE master DB, init data chạy lại)
 
-docker exec -e PGPASSWORD=admin123 football-master \
-  psql -U admin -d football -c "SELECT * FROM ref.v_top_scorers;"
+# Station (mỗi bạn tự làm):
+docker compose -f docker-compose.station.yml -p football-station<N> --env-file .env.station down -v
+docker compose -f docker-compose.station.yml -p football-station<N> --env-file .env.station up -d
 ```
 
----
-
-## Tóm tắt 30 giây
-
-```bash
-# Master (máy bạn):
-docker network create --subnet 10.200.0.0/24 football-net
-make up-master
-
-# Station (team member - Windows, chạy 1 lệnh):
-#  Mở PowerShell admin và dán:
-& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing `
-  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1").Content))
-
-# Xong. 2 chiều replication tự chạy.
-```
-
----
-
-## Cho team member (chỉ Windows)
-
-Trên máy trạm Windows: mở PowerShell **dưới quyền admin** (Nhấn nút Windows → gõ "PowerShell" → click phải → "Run as administrator") và dán đúng 1 lệnh:
-
-```powershell
-& ([scriptblock]::Create((Invoke-WebRequest -UseBasicParsing `
-  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1").Content))
-```
-
-Script `scripts/setup-station.ps1` tự động:
-
-1. Cài winget (nếu thiếu, qua Microsoft Store - App Installer)
-2. Cài git (nếu chưa có, qua `winget install Git.Git`)
-3. Clone repo về `C:\Users\<bạn>\football-station`
-4. Cài Docker Desktop (nếu chưa có, qua `winget install Docker.DockerDesktop`); mở & đợi daemon lên
-5. Tạo docker network `football-net` (subnet `10.200.0.0/24`, tránh xung đột LAN `172.18.x`) + mở firewall ICMPv4 cho ping
-6. Hỏi 2 câu: **IP máy trạm** + **IP master** → tự ghi vào `.env.station` (có gợi ý IP DHCP, có validate)
-7. Chạy: `docker compose up -d` → đợi healthy → migration → subscribe master→station → tự đăng ký station→master trên master → in status → listen logs
-
-⚠️ **Master phải đã up trước** (xem Bước 2.1). Nếu chưa, bước cuối báo "Host is unreachable" - chạy lại lệnh trên sau khi master sẵn sàng.
-
-### Yêu cầu từ team member
-
-- Windows 10 21H1+ hoặc Windows 11 (để có winget)
-- Có quyền admin máy (cần cho winget install và Docker Desktop)
-- ~5GB disk cho Docker Desktop
-- Đang ở cùng mạng LAN với master (hoặc VPN Tailscale/ZeroTier)
-
-### Cài thủ công nếu PowerShell không chạy được
-
-```powershell
-# Tải file .ps1 về:
-Invoke-WebRequest -OutFile setup-station.ps1 `
-  "https://raw.githubusercontent.com/GnauqTheBeast/football-station/main/scripts/setup-station.ps1"
-
-# Chạy:
-powershell -ExecutionPolicy Bypass -File .\setup-station.ps1
-```
-
-### Mở Windows Firewall cho ping (nếu script không chạy với quyền admin)
-
-Chạy PowerShell admin và dán:
-
-```powershell
-netsh advfirewall firewall add rule name="Allow ICMPv4" protocol=icmpv4:8,any dir=in action=allow
-```
-
-Cần để master có thể ping station (kiểm tra kết nối trước khi tạo subscription).
-
-### Chạy lại nhiều lần
-
-Script idempotent - chạy lại chỉ update `.env.station` và pull code mới nhất. An toàn chạy lại.
+Sau khi reset, chạy lại `make setup-fdw` để master reconnect tới các station fresh.

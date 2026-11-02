@@ -1,77 +1,73 @@
 name: football-ddb
 
+# =============================================================================
+# Hệ thống CSDL phân tán V-League: MASTER (Trung tâm) - postgres_fdw
+# File này CHỈ chứa service MASTER để chạy trên máy của bạn.
+# 6 stations chạy riêng trên máy các bạn (xem docker-compose.station.yml).
+#
+# Khởi động master + FDW setup (sau khi 6 station friends đã healthy qua ZeroTier):
+#   docker network create football-net     # chỉ 1 lần
+#   docker compose up -d master
+#   # set ZeroTier IPs của 6 bạn trong .env.master:
+#   STATION1_HOST=10.147.17.11 ... STATION6_HOST=10.147.17.16
+#   ./scripts/setup-fdw.sh
+#
+# All-in-1 dev mode (tất cả 7 trên máy bạn): use docker-compose.dev.yml (TODO).
+# =============================================================================
+
 services:
-  postgres:
+  master:
     image: postgres:16-alpine
     restart: unless-stopped
-    container_name: ${CONTAINER_NAME:-football-postgres}
+    container_name: football-master
+    command: ["postgres", "-c", "max_connections=100"]
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      NODE_ROLE: ${NODE_ROLE}
-      STATION_ID: ${STATION_ID:-0}
-      MASTER_HOST: ${MASTER_HOST:-}
-      MASTER_PORT: ${MASTER_PORT:-}
-      MASTER_DB: ${MASTER_DB:-}
-      STATION_HOST: ${STATION_HOST:-}
-      STATION_PORT: ${STATION_PORT:-}
-      STATION_DB: ${STATION_DB:-}
-      STATION_PUBLIC_HOST: ${STATION_PUBLIC_HOST:-}
-      STATION_PUBLIC_PORT: ${STATION_PUBLIC_PORT:-}
-      STATION_PUBLIC_DB: ${STATION_PUBLIC_DB:-}
-      REPLICATION_SLOT: ${REPLICATION_SLOT:-}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${POSTGRES_DB:-vleague_master}
+      NODE_ROLE: master
     ports:
-      - "${POSTGRES_PORT:-5430}:5432"
+      - "5430:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - master_data:/var/lib/postgresql/data
       - ./db:/db:ro
+      - ./db/master:/db/master:ro
       - ./scripts/init-node.sh:/docker-entrypoint-initdb.d/init-node.sh:ro
-      - ./scripts/subscribe.sh:/subscribe.sh:ro
-      - ./scripts/subscribe-master.sh:/subscribe-master.sh:ro
-      - ./scripts/register-with-master.sh:/register-with-master.sh:ro
+      - ./scripts/setup-fdw.sh:/setup-fdw.sh:ro
     networks:
       football_net:
-        aliases:
-          - ${NETWORK_ALIAS:-postgres}
-    command: ["postgres", "-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
+        aliases: [master]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-postgres}"]
       interval: 3s
       timeout: 3s
       retries: 30
 
-  # Next.js SSR web app. Optional - only starts when APP_ENABLED=1 (use
-  # `make up-app` target). Talks to the local postgres on the same compose
-  # network so docker DNS resolves the postgres service alias.
+  # Next.js SSR web app (optional, opt-in via profile "app")
   app:
     build:
       context: ./app
       dockerfile: Dockerfile
-    container_name: ${APP_CONTAINER_NAME:-football-app}
+    container_name: football-app
     depends_on:
-      postgres:
+      master:
         condition: service_healthy
     environment:
-      POSTGRES_HOST: ${APP_POSTGRES_HOST:-postgres}        # docker service alias
-      POSTGRES_PORT: "5432"                                  # inside-network port
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-      NODE_ROLE: ${NODE_ROLE}
-      STATION_ID: ${STATION_ID:-0}
+      POSTGRES_HOST: master
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${POSTGRES_DB:-vleague_master}
+      NODE_ROLE: master                          # App query master (vw_global_*)
     ports:
-      - "${APP_PORT:-3000}:3000"
-    profiles: ["app"]                                        # opt-in via --profile app
+      - "3000:3000"
+    profiles: ["app"]
     restart: unless-stopped
     networks:
-      football_net:
-        aliases:
-          - app
+      - football_net
 
 volumes:
-  postgres_data:
+  master_data:
 
 networks:
   football_net:

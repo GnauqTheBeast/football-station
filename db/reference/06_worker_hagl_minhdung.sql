@@ -1,0 +1,119 @@
+-- ============================================================================
+-- TRẠM 6: CHI NHÁNH HOÀNG ANH GIA LAI (SÂN PLEIKU)
+-- Người phụ trách: HOÀNG MINH DŨNG (Mã HV: B26CHHT027)
+-- Địa chỉ IP ZeroTier: 10.147.17.16
+-- Database: vleague_hagl | Port: 5432
+-- Nhiệm vụ: Quản lý 5 trận sân nhà của CLB HAGL (TR06, TR10, TR17, TR24, TR30)
+-- ============================================================================
+
+DROP TABLE IF EXISTS SU_KIEN_TRAN_DAU CASCADE;
+DROP TABLE IF EXISTS TRAN_DAU_CHUYEN_MON CASCADE;
+DROP TABLE IF EXISTS VONG_DAU CASCADE;
+DROP TABLE IF EXISTS TRONG_TAI CASCADE;
+DROP TABLE IF EXISTS CAU_THU CASCADE;
+DROP TABLE IF EXISTS DOI_BONG CASCADE;
+DROP TABLE IF EXISTS SAN_VAN_DONG CASCADE;
+
+-- 1. BẢNG DANH MỤC DÙNG CHUNG (BẢN SAO READ-ONLY REPLICA)
+CREATE TABLE SAN_VAN_DONG (
+    MaSan VARCHAR(10) PRIMARY KEY,
+    TenSan VARCHAR(100) NOT NULL,
+    DiaChi VARCHAR(200) NOT NULL,
+    SucChua INT NOT NULL,
+    KhuVuc VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE DOI_BONG (
+    MaDoi VARCHAR(10) PRIMARY KEY,
+    TenDoi VARCHAR(100) NOT NULL,
+    HLV VARCHAR(100) NOT NULL,
+    MaSanNha VARCHAR(10) NOT NULL
+);
+
+CREATE TABLE CAU_THU (
+    MaCauThu VARCHAR(10) PRIMARY KEY,
+    HoTen VARCHAR(100) NOT NULL,
+    NgaySinh DATE NOT NULL,
+    ViTri VARCHAR(20) NOT NULL,
+    QuocTich VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE TRONG_TAI (
+    MaTrongTai VARCHAR(10) PRIMARY KEY,
+    HoTen VARCHAR(100) NOT NULL,
+    NgaySinh DATE NOT NULL,
+    QueQuan VARCHAR(100) NOT NULL,
+    CapBac VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE VONG_DAU (
+    MaVong INT PRIMARY KEY,
+    TenVong VARCHAR(50) NOT NULL,
+    ThuTu INT NOT NULL
+);
+
+-- 2. BẢNG PHÂN MẢNH CỤC BỘ TẠI TRẠM HAGL
+CREATE TABLE TRAN_DAU_CHUYEN_MON (
+    MaTran VARCHAR(10) PRIMARY KEY,
+    MaVong INT NOT NULL,
+    MaDoiNha VARCHAR(10) NOT NULL CHECK (MaDoiNha = 'HAGL'),
+    MaDoiKhach VARCHAR(10) NOT NULL,
+    MaSan VARCHAR(10) NOT NULL DEFAULT 'SAN_PK',
+    NgayGio TIMESTAMP NOT NULL,
+    BanThangNha INT NOT NULL DEFAULT 0,
+    BanThangKhach INT NOT NULL DEFAULT 0,
+    TheVangNha INT NOT NULL DEFAULT 0,
+    TheVangKhach INT NOT NULL DEFAULT 0,
+    TheDoNha INT NOT NULL DEFAULT 0,
+    TheDoKhach INT NOT NULL DEFAULT 0,
+    TrangThai VARCHAR(20) NOT NULL DEFAULT 'DaKetThuc'
+);
+
+CREATE TABLE SU_KIEN_TRAN_DAU (
+    MaSuKien VARCHAR(10) PRIMARY KEY,
+    MaTran VARCHAR(10) NOT NULL REFERENCES TRAN_DAU_CHUYEN_MON(MaTran),
+    MaCauThu VARCHAR(10) NOT NULL,
+    LoaiSuKien VARCHAR(20) NOT NULL,
+    PhutGhiNhan INT NOT NULL
+);
+
+-- 3. NẠP DỮ LIỆU CỤC BỘ 5 TRẬN SÂN NHÀ HAGL
+INSERT INTO TRAN_DAU_CHUYEN_MON VALUES
+('TR06', 2, 'HAGL', 'VTT',  'SAN_PK', '2026-03-09 17:00:00', 1, 1, 1, 2, 0, 0, 'DaKetThuc'),
+('TR10', 4, 'HAGL', 'HNFC', 'SAN_PK', '2026-03-22 17:00:00', 0, 1, 2, 1, 0, 0, 'DaKetThuc'),
+('TR17', 6, 'HAGL', 'CAHN', 'SAN_PK', '2026-04-05 17:00:00', 0, 2, 1, 1, 0, 0, 'DaKetThuc'),
+('TR24', 8, 'HAGL', 'NDFC', 'SAN_PK', '2026-04-20 17:00:00', 0, 2, 1, 0, 0, 0, 'DaKetThuc'),
+('TR30', 10, 'HAGL', 'HPFC', 'SAN_PK', '2026-05-03 18:00:00', 2, 1, 1, 1, 0, 0, 'DaKetThuc');
+
+-- 4. NẠP SỰ KIỆN BÀN THẮNG & THẺ PHẠT CỦA 5 TRẬN NÀY
+INSERT INTO SU_KIEN_TRAN_DAU VALUES
+-- TR06: HAGL 1 - 1 VTT
+('SK033', 'TR06', 'CT096', 'BanThang', 40),
+('SK034', 'TR06', 'CT042', 'BanThang', 65),
+('SK035', 'TR06', 'CT095', 'TheVang', 55),
+('SK036', 'TR06', 'CT038', 'TheVang', 38),
+('SK037', 'TR06', 'CT041', 'TheVang', 82),
+
+-- TR10: HAGL 0 - 1 HNFC
+('SK058', 'TR10', 'CT007', 'BanThang', 55),
+('SK059', 'TR10', 'CT092', 'TheVang', 30),
+('SK060', 'TR10', 'CT097', 'TheVang', 80),
+('SK061', 'TR10', 'CT014', 'TheVang', 65),
+
+-- TR17: HAGL 0 - 2 CAHN
+('SK097', 'TR17', 'CT028', 'BanThang', 18),
+('SK098', 'TR17', 'CT029', 'BanThang', 72),
+('SK099', 'TR17', 'CT098', 'TheVang', 55),
+('SK100', 'TR17', 'CT021', 'TheVang', 65),
+
+-- TR24: HAGL 0 - 2 NDFC
+('SK134', 'TR24', 'CT064', 'BanThang', 20),
+('SK135', 'TR24', 'CT063', 'BanThang', 65),
+('SK136', 'TR24', 'CT093', 'TheVang', 50),
+
+-- TR30: HAGL 2 - 1 HPFC
+('SK162', 'TR30', 'CT096', 'BanThang', 20),
+('SK163', 'TR30', 'CT100', 'BanThang', 65),
+('SK164', 'TR30', 'CT082', 'BanThang', 50),
+('SK165', 'TR30', 'CT092', 'TheVang', 40),
+('SK166', 'TR30', 'CT074', 'TheVang', 70);

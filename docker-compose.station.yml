@@ -1,0 +1,50 @@
+name: football-station
+
+# =============================================================================
+# Chạy TRÊN MÁY TRẠM (bạn bè). Mỗi bạn 1 station từ 1..6.
+# Yêu cầu:
+#   - Clone repo, git checkout btl-fdw-import
+#   - Tạo file .env.station trên máy bạn (sample ở .env.station.example)
+#   - Docker Network: docker network create football-net  (chỉ 1 lần)
+#
+# Khởi động:
+#   docker compose -f docker-compose.station.yml --env-file .env.station up -d
+#
+# Để đổi station_id: sửa .env.station, down -v, up lại.
+# =============================================================================
+
+services:
+  station:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    container_name: football-station${STATION_ID}
+    command: ["postgres", "-c", "max_connections=100"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+      POSTGRES_DB: ${POSTGRES_DB:-vleague_hnfc}
+      NODE_ROLE: ${NODE_ROLE:-station${STATION_ID}}
+      STATION_ID: ${STATION_ID:-1}
+    ports:
+      - "${POSTGRES_PORT:-5431}:5432"
+    volumes:
+      - station_data:/var/lib/postgresql/data
+      - ./db:/db:ro
+      - ./scripts/init-node.sh:/docker-entrypoint-initdb.d/init-node.sh:ro
+    networks:
+      football_net:
+        aliases:
+          - station${STATION_ID}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U ${POSTGRES_USER:-postgres}"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  station_data:
+
+networks:
+  football_net:
+    external: true
+    name: ${NETWORK_NAME:-football-net}
