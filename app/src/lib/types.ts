@@ -1,120 +1,93 @@
-// src/lib/types.ts - Database row types matching DDL in db/common/*.
-export interface Station {
-  station_id: number;
-  name: string;
-  region: string;
+// src/lib/types.ts - Row types khớp schema FDW thật (vleague_master / station local).
+// Master đọc vw_global_*, station đọc TRAN_DAU_CHUYEN_MON / SU_KIEN_TRAN_DAU local.
+
+export interface GlobalMatch {
+  matran: string;
+  mavong: number;
+  madoinha: string;
+  madoikhach: string;
+  masan: string;
+  ngaygio: string;
+  giave: string | null;
+  sokhach: number | null;
+  banthangnha: number;
+  banthangkhach: number;
+  thevangnha: number;
+  thevangkhach: number;
+  thedonha: number;
+  thedokhach: number;
+  trangthai: string;
 }
 
-export interface Stadium {
-  stadium_id: number;
-  station_id: number;
-  name: string;
-  capacity: number;
+export interface GlobalEvent {
+  masukien: string;
+  matran: string;
+  macauthu: string;
+  loaisukien: string;
+  phutghinhan: number;
+  hoten?: string;
+  vitri?: string;
 }
 
-export interface Team {
-  team_id: number;
-  home_stadium_id: number;
-  name: string;
-  founded_year: number;
+export interface StandingRow {
+  vitri: number;
+  madoi: string;
+  sotrandadau: number;
+  sotranthang: number;
+  sotranhoa: number;
+  sotranthua: number;
+  tongbanthang: number;
+  tongbanthua: number;
+  hieuso: number;
+  diemso: number;
+  sotranthangsankhach: number;
+  tongthedo: number;
+  tongthevang: number;
 }
 
-export interface Season {
-  season_id: number;
-  name: string;
-  start_date: string;
-  end_date: string;
+export interface TopScorerRow {
+  xephang: number;
+  macauthu: string;
+  hoten: string;
+  sobanthang: number;
 }
 
-export interface Round {
-  round_id: number;
-  season_id: number;
-  round_no: number;
-  start_date: string;
-  end_date: string;
+export interface DoanhThuSan {
+  masan: string;
+  sotran: number;
+  tongkhach: number;
+  tongtien: string;
 }
 
-export interface Fixture {
-  fixture_id: number;
-  round_id: number;
-  home_team: number;
-  away_team: number;
-  stadium_id: number;
-  kickoff: string;
-  // joined fields from home/away team + stadium (UI convenience)
-  home_team_name?: string;
-  away_team_name?: string;
-  stadium_name?: string;
-  round_no?: number;
-  season_name?: string;
+export interface CauThu {
+  macauthu: string;
+  hoten: string;
+  vitri: string;
 }
 
-export interface MatchResult {
-  station_id: number;
-  fixture_id: number;
-  played_at: string;
-  home_goals: number;
-  away_goals: number;
-  attendance: number;
-  ticket_price: string;
-  home_team_name?: string;
-  away_team_name?: string;
-  stadium_name?: string;
+export interface DoanhThuTran {
+  matran: string;
+  giave: string;
+  sokhach: number;
 }
 
-export interface MatchEvent {
-  station_id: number;
-  event_id: number;
-  fixture_id: number;
-  player_id: number;
-  kind: "goal" | "yellow" | "red";
-  minute: number;
-  player_name?: string;
+export interface StationMeta {
+  id: number;
+  club: string;
+  db: string;
+  schema: string;
+  server: string;
+  san: string;
 }
 
-export interface MatchSquadRow {
-  station_id: number;
-  fixture_id: number;
-  player_id: number;
-  team_id: number;
-  shirt_no: number;
-  player_name?: string;
-}
-
-export interface Player {
-  player_id: number;
-  full_name: string;
-  birth_date: string;
-  nationality: string;
-  position: "GK" | "DF" | "MF" | "FW";
-}
-
-export interface Standing {
-  team_id: number;
-  name: string;
-  played: number;
-  won: number;
-  drawn: number;
-  lost: number;
-  gf: number;
-  ga: number;
-  gd: number;
-  pts: number;
-}
-
-export interface TopScorer {
-  player_id: number;
-  full_name: string;
-  team_name: string;
-  goals: number;
+export interface StationHealth extends StationMeta {
+  imported: boolean;
+  tranCount: number | null;
 }
 
 export interface StationInfo {
   station_id: number;
   station_name: string;
-  region: string;
-  stadium_id: number;
-  stadium_name: string;
-  capacity: number;
+  club: string;
   role: "master" | "station";
 }
