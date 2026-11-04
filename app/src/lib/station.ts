@@ -1,11 +1,11 @@
-// src/lib/station.ts - Meta 5 station + station health trên master.
+// src/lib/station.ts - Meta 6 station + station health trên master.
 import { querySafe, getStationId, getRole } from "./db";
 import type { StationMeta, StationHealth, StationInfo } from "./types";
 
-// Station 3 (Viettel) bỏ demo vì team không có người.
 export const STATIONS: StationMeta[] = [
   { id: 1, club: "HNFC", db: "vleague_hnfc", schema: "site1_hnfc", server: "srv_tuan_hnfc", san: "SAN_HD" },
   { id: 2, club: "CAHN", db: "vleague_cahn", schema: "site2_cahn", server: "srv_thong_cahn", san: "SAN_HD" },
+  { id: 3, club: "VTT", db: "vleague_viettel", schema: "site3_viettel", server: "srv_dung_viettel", san: "SAN_MD" },
   { id: 4, club: "HPFC", db: "vleague_haiphong", schema: "site4_hpfc", server: "srv_quanganh_hpfc", san: "SAN_LT" },
   { id: 5, club: "NDFC", db: "vleague_namdinh", schema: "site5_ndfc", server: "srv_bich_ndfc", san: "SAN_TT" },
   { id: 6, club: "HAGL", db: "vleague_hagl", schema: "site6_hagl", server: "srv_minhdung_hagl", san: "SAN_PK" },

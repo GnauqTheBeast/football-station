@@ -2,7 +2,7 @@
 # scripts/station-test-insert.sh - Chạy TRÊN MÁY TRẠM (bạn bè).
 # Test end-to-end postgres_fdw: station insert → master query qua FDW.
 #
-# An toàn chạy đồng thời 6 máy (1 master + 5 station) - mỗi máy:
+# An toàn chạy đồng thời 7 máy (1 master + 6 station) - mỗi máy:
 #   - 1 STATION_ID riêng (auto-detect hoặc set env)
 #   - 1 station DB riêng (vleague_hnfc / vleague_cahn / ...)
 #   - 1 MaTran test riêng: T<N><hash-8> = 10 ký tự (fit VARCHAR(10))

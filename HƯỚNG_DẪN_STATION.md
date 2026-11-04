@@ -4,9 +4,9 @@
 >
 > **Máy master (Trung tâm) ở máy Quang - IP LAN: `10.19.227.12`**
 >
-> Kiến trúc: `postgres_fdw` - master IMPORT FOREIGN SCHEMA từ 5 station. Bạn không cần biết cái đó, chỉ cần làm đúng theo hướng dẫn bên dưới.
+> Kiến trúc: `postgres_fdw` - master IMPORT FOREIGN SCHEMA từ 6 station. Bạn không cần biết cái đó, chỉ cần làm đúng theo hướng dẫn bên dưới.
 >
-> **Lưu ý**: Bài gốc BTL-CSDL có 6 station, nhưng team mình chỉ có 5 bạn station (Tuấn, Thông, Quang Anh, Ngọc Bích, Minh Dũng) + Quang (master). Nên Station 3 (Viettel) **bỏ khỏi demo** - không deploy. Tổng 25 trận phân mảnh ngang (5 station x 5 trận), master gộp qua FDW.
+> **Lưu ý**: Bài gốc BTL-CSDL có 6 station, team mình có đủ 6 bạn station (Tuấn, Thông, Mạnh Dũng, Quang Anh, Ngọc Bích, Minh Dũng) + Quang (master). Tổng 30 trận phân mảnh ngang (6 station x 5 trận), master gộp qua FDW.
 
 ---
 
@@ -31,6 +31,16 @@
 | **Sân nhà** | Hàng Đẫy |
 | **DB name** | `vleague_cahn` |
 | **Trận quản lý** | TR02, TR11, TR20, TR22, TR29 (5 trận sân nhà CAHN) |
+
+### Mạnh Dũng - Station 3 (VTT - Viettel FC)
+
+| | |
+|---|---|
+| **STATION_ID** | `3` |
+| **CLB** | VTT (Viettel FC) |
+| **Sân nhà** | Mỹ Đình |
+| **DB name** | `vleague_viettel` |
+| **Trận quản lý** | TR03, TR08, TR21, TR26, TR28 (5 trận sân nhà VTT) |
 
 ### Quang Anh - Station 4 (HPFC - Hải Phòng FC)
 
@@ -62,8 +72,8 @@
 | **DB name** | `vleague_hagl` |
 | **Trận quản lý** | TR06, TR10, TR17, TR24, TR30 (5 trận sân nhà HAGL) |
 
-> **Tổng: 5 × 5 = 25 trận phân mảnh ngang. Master gộp tất cả qua FDW**.
-> (BTL-CSDL gốc có 6 station = 30 trận, nhưng team mình bỏ Station 3 Viettel nên còn 5 station = 25 trận.)
+> **Tổng: 6 × 5 = 30 trận phân mảnh ngang. Master gộp tất cả qua FDW**.
+> (Đúng như BTL-CSDL gốc: 6 station = 30 trận.)
 
 ---
 
@@ -81,7 +91,7 @@ Script tự động:
 - Cài git nếu thiếu
 - Clone repo về `football-station\`
 - Tạo docker network `football-net`
-- Hỏi bạn **STATION_ID** - **NHẬP ĐÚNG SỐ CỦA BẠN (1, 2, 4, 5, 6 - KHÔNG nhập 3) theo bảng mục 1**
+- Hỏi bạn **STATION_ID** - **NHẬP ĐÚNG SỐ CỦA BẠN (1, 2, 3, 4, 5, 6) theo bảng mục 1**
 # Tự tạo `.env.station` với `POSTGRES_DB` khớp STATION_ID
 - Up container, đợi healthy, in ra IP LAN/ZeroTier của máy bạn
 
@@ -329,9 +339,9 @@ docker compose -f docker-compose.station.yml --env-file .env.station -p football
 | Station healthy nhưng Quang không query được qua FDW | Bạn chưa báo IP hoặc IP wrong. Cấp lại IP cho Quang. Chạy `./scripts/station-fix-and-test.sh` để verify |
 | Setup-station.ps1 báo "Need restart after install Docker" | Restart máy, mở Docker Desktop, đợi 1 phút, mở lại PowerShell admin, chạy lại script |
 | `pg_isready` báo `no response` từ master | Master container chưa healthy ở máy Quang. Báo Quang kiểm tra `make ps` |
-| `cannot translate host name "station3"` khi Quang chạy `make setup-fdw` | Bình thường. Station 3 đã bỏ khỏi demo, master tự SKIP station 3, không ảnh hưởng 5 station khác |
+| `cannot translate host name "station3"` khi Quang chạy `make setup-fdw` | `STATION3_HOST` trong `.env.master` chưa set IP ZeroTier (còn giá trị default 'station3'). Set `STATION3_HOST=<IP máy Mạnh Dũng>` rồi chạy lại `make setup-fdw` |
 | `fe_sendauth: no password supplied` từ master tới station của bạn | Hỏi Quang kiểm tra `.env.master` có `POSTGRES_PASSWORD=123456` chưa. Hoặc password của bạn không phải `123456` - chạy `./scripts/station-fix-and-test.sh` để fix |
-| Bạn không biết mình là station nào | Quay lại mục 1 header "## 1. VAI TRÒ CỦA BẠN" - tìm tên bạn (Tuấn / Thông / Quang Anh / Ngọc Bích / Minh Dũng) |
+| Bạn không biết mình là station nào | Quay lại mục 1 header "## 1. VAI TRÒ CỦA BẠN" - tìm tên bạn (Tuấn / Thông / Mạnh Dũng / Quang Anh / Ngọc Bích / Minh Dũng) |
 
 ---
 
@@ -354,7 +364,7 @@ Master IP Quang:    10.19.227.12:5430
 
 ## LƯU Ý QUAN TRỌNG
 
-1. **STATION_ID phải đúng** - mỗi người 1 số khác nhau (1, 2, 4, 5, 6 - **KHÔNG nhập 3**, station 3 đã bỏ khỏi demo). Nhập sai sẽ ghi đè lên station người khác trong cùng máy (hiếm khi xảy ra vì máy khác nhau, nhưng nếu ai chạy 2 container trên 1 máy sẽ lỗi).
+1. **STATION_ID phải đúng** - mỗi người 1 số khác nhau (1, 2, 3, 4, 5, 6). Nhập sai sẽ ghi đè lên station người khác trong cùng máy (hiếm khi xảy ra vì máy khác nhau, nhưng nếu ai chạy 2 container trên 1 máy sẽ lỗi).
 2. **POSTGRES_DB phải khớp STATION_ID** - script Windows tự làm, Linux/Mac phải tự sửa file `.env.station`. Hoặc dùng `./scripts/station-fix-and-test.sh` để auto-fix đầy đủ config + test tới master.
 3. **Báo IP cho Quang** - bắt buộc, không thì master không kết nối được tới station của bạn qua FDW. IP LAN hoặc ZeroTier đều được (miễn master ping được).
 4. **Password mặc định** `123456` - khởi tạo từ script, không đổi (master FDW user mapping dùng pwd này).

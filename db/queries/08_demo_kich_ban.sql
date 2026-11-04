@@ -8,20 +8,20 @@
 --   CLI:     docker exec -it football-master psql -U postgres -d vleague_master
 --   Make:    make psql-master
 --
--- Kiến trúc hệ thống (5 station, không có station 3):
+-- Kiến trúc hệ thống (6 station):
 --   Station 1 (HNFC - Tuấn)          -> site1_hnfc schema (FDW)
 --   Station 2 (CAHN - Thông)        -> site2_cahn schema (FDW)
+--   Station 3 (VTT - Mạnh Dũng)     -> site3_viettel schema (FDW)
 --   Station 4 (HPFC - Quang Anh)    -> site4_hpfc schema (FDW)
 --   Station 5 (NDFC - Ngọc Bích)    -> site5_ndfc schema (FDW)
 --   Station 6 (HAGL - Minh Dũng)    -> site6_hagl schema (FDW)
---   Station 3 (VTT) - bỏ khỏi demo -> SKIP
 --
--- Total: 25 trận (5 station x 5 trận sân nhà)
+-- Total: 30 trận (6 station x 5 trận sân nhà)
 -- ============================================================================
 
 \echo '============================================================'
 \echo 'KỊCH BẢN 1: TÍNH TRONG SUỐT VỊ TRÍ (TRANSPARENCY)'
-\echo 'Chứng minh 25 trận từ 5 máy đều hiện trên master qua FDW'
+\echo 'Chứng minh 30 trận từ 6 máy đều hiện trên master qua FDW'
 \echo '============================================================'
 
 -- Tổng quan: đếm trận, khán giả, doanh thu toàn giải
@@ -31,7 +31,7 @@ SELECT
     SUM(GiaVe * SoKhach)                AS TongDoanhThuVe
 FROM vw_global_tran_dau;
 
--- Chi tiết 25 trận (sắp xếp theo CLB quản lý)
+-- Chi tiết 30 trận (sắp xếp theo CLB quản lý)
 SELECT
     MaTran, MaVong, MaDoiNha, MaDoiKhach, MaSan,
     BanThangNha || '-' || BanThangKhach AS TiSo,
@@ -58,7 +58,7 @@ ORDER BY 1;
 
 \echo '============================================================'
 \echo 'KỊCH BẢN 2: VUA PHÁ LƯỚI TOÀN GIẢI (CROSS-SITE JOIN)'
-\echo 'Gom sự kiện 5 station + JOIN CAU_THU local master'
+\echo 'Gom sự kiện 6 station + JOIN CAU_THU local master'
 \echo '============================================================'
 
 -- Top 10 vua phá lưới (function FDW-ready)
@@ -99,7 +99,7 @@ ORDER BY CLB, SoBanThang DESC;
 
 \echo '============================================================'
 \echo 'KỊCH BẢN 3: BẢNG XẾP HẠNG TỰ CẬP NHẬT'
-\echo 'BXH tổng hợp từ vw_global_tran_dau (5 station)'
+\echo 'BXH tổng hợp từ vw_global_tran_dau (6 station)'
 \echo '============================================================'
 
 SELECT
@@ -240,8 +240,8 @@ ORDER BY MaTran;
 \echo 'Khi 1 station offline, query qua FDW phải có ERROR rõ ràng'
 \echo '============================================================'
 
--- Station 3 (Viettel) đã bỏ khỏi demo -> schema trống, không có foreign tables
--- Query trực tiếp sẽ báo ERROR:
+-- Ví dụ: 1 station chưa IMPORT foreign tables (schema trống) hoặc offline,
+-- query trực tiếp sẽ báo ERROR:
 -- SELECT * FROM site3_viettel.tran_dau_chuyen_mon;
 -- ERROR: relation "site3_viettel.tran_dau_chuyen_mon" does not exist
 
@@ -267,7 +267,7 @@ SELECT
        WHERE table_schema LIKE 'site%' AND table_type='FOREIGN') AS SoForeignTables;
 
 -- Phân mảnh rõ ràng: mô tả(SELECT descripcion)
-\echo '=> 5 station đóng góp 5 trận mỗi cái = 25 tran (mảnh ngang theo đội sân nhà)'
+\echo '=> 6 station đóng góp 5 trận mỗi cái = 30 tran (mảnh ngang theo đội sân nhà)'
 \echo '=> Master giữ CAU_THU 22 (mảnh dọc, JOIN với vw_global_su_kien_tran_dau để top scorer)'
 \echo '=> Master giữ TRAN_DAU_DOANH_THU 30 (mảnh dọc tài chính, LEFT JOIN với vw_global_tran_dau)'
 \echo '=> FDW = postgres_fdw, IMPORT FOREIGN SCHEMA LIMIT TO (tran_dau_chuyen_mon, su_kien_tran_dau)'

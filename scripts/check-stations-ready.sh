@@ -42,11 +42,10 @@ echo "=== check-stations-ready.sh ==="
 echo "Master container: $CONTAINER"
 echo "Env file       : $ENV_FILE  ($([ -f "$ENV_FILE" ] && echo 'found' || echo 'MISSING'))"
 echo ""
-echo "Lưu ý: Station 3 (Viettel) đã bỏ khỏi demo (team không có người). Tự SKIP."
-echo ""
 
-# Station 3 explicitly excluded (team không deploy station 3)
-EXCLUDED_STATIONS="${EXCLUDED_STATIONS:-3}"
+# Muốn loại 1 station khỏi check: set EXCLUDED_STATIONS=<id> (vd: EXCLUDED_STATIONS=3).
+# Mặc định KHÔNG loại station nào (cả 6 station đều check).
+EXCLUDED_STATIONS="${EXCLUDED_STATIONS:-}"
 
 is_excluded() {
   echo " $EXCLUDED_STATIONS " | grep -qw "$1"
@@ -125,7 +124,7 @@ done
 echo ""
 echo "=== TỔNG KẾT ==="
 if [ $ALL_OK -eq 1 ]; then
-  echo "  TẤT CẢ 5 STATION SẴN SÀNG (skip: $EXCLUDED_STATIONS). Có thể chạy: make setup-fdw"
+  echo "  TẤT CẢ 6 STATION SẴN SÀNG. Có thể chạy: make setup-fdw"
 else
   echo "  CÒN STATION FAIL (xem bảng). Cần: "
   echo "    1. Báo bạn có STATION_ID fail sửa/trường IP Postgres healthy rồi báo lại IP"
